@@ -1,12 +1,13 @@
-"""Cancionero Caná v0.3.3: interfaz compacta para móvil."""
+"""Cancionero Caná v0.3.4: búsqueda por letra, selector limpio y enarmonía."""
 from pathlib import Path
 import os
 import sys
+import time
 
 import streamlit as st
 from dotenv import load_dotenv
 
-from musica import CSS, music_from_blocks, render_song, pitch_class, PREFERRED
+from musica import CSS, music_from_blocks, render_song, pitch_class, PREFERRED, SHARPS, FLATS
 
 st.set_page_config(page_title='Cancionero Caná', page_icon='🎶', layout='wide',
                    initial_sidebar_state='collapsed')
@@ -22,7 +23,7 @@ except (FileNotFoundError, KeyError):
 import conexion_notion as api  # noqa: E402
 
 
-@st.cache_data(ttl=90, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def songs_from_notion():
     """Lee la base completa; no escribe en Notion."""
     source_id = api.find_source()
@@ -44,7 +45,7 @@ def read_children(block_id: str) -> list[dict]:
     return blocks
 
 
-@st.cache_data(ttl=90, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def content_from_notion(page_id: str):
     """Descarga todo el texto (paginado) y los bloques interiores más comunes."""
     result = []
@@ -63,6 +64,39 @@ def content_from_notion(page_id: str):
 
     visit(page_id)
     return music_from_blocks(result)
+
+
+
+def searchable_lyrics(music: list[dict]) -> str:
+    """Extrae sólo letra y anotaciones, sin líneas de acordes amarillos."""
+    pieces = []
+    for item in music:
+        if item.get('type') == 'pair':
+            pieces.append(item.get('lyrics', ''))
+        elif item.get('type') in ('text', 'inline_annotation'):
+            pieces.append(item.get('text', ''))
+    return api.normalized(' '.join(pieces))
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def lyric_index(song_ids: tuple[str, ...]) -> tuple[dict[str, str], int]:
+    """Índice en caché para búsquedas por frases, construido bajo demanda.
+
+    Al buscar por letra la primera vez se leen las canciones publicadas desde
+    Notion. Los resultados se comparten en caché entre visitas durante 5 min.
+    Se espacian las llamadas para respetar el límite habitual de la API.
+    """
+    index, failures = {}, 0
+    for i, song_id in enumerate(song_ids):
+        if i:
+            time.sleep(0.37)
+        try:
+            index[song_id] = searchable_lyrics(content_from_notion(song_id))
+        except (SystemExit, ValueError, KeyError, OSError):
+            failures += 1
+            index[song_id] = ''
+    return index, failures
+
 
 
 def get_select(page, name: str) -> str:
@@ -155,44 +189,89 @@ songs.sort(key=lambda x: api.normalized(api.song_title(x)))
 
 with st.sidebar:
     st.header('Buscar y ajustar')
-    search = st.text_input('Título', placeholder='Busca un canto...')
     categories = sorted({c for song in songs for c in get_multiselect(song, 'Categoria') or get_multiselect(song, 'Categoría')})
     category = st.selectbox('Categoría', ['Todas'] + categories)
     st.divider()
     font_size = st.slider('Tamaño de la letra', 12, 28, 14, key='cana_font_size')
     show_chords = st.toggle('Mostrar acordes', value=True)
     prevent_overlap = st.toggle('Evitar que se encimen los acordes', value=True, help='Si dos acordes transportados chocan, los coloca en distintas líneas sin cambiar la letra.')
-    notation = st.selectbox('Enarmonía', ['Automática', 'Sostenidos (#)', 'Bemoles (b)'])
+    notation = st.selectbox('Enarmonía', ['Sostenidos (#)', 'Bemoles (b)', 'Automática'], key='cana_notation')
     notation_code = {'Automática': 'auto', 'Sostenidos (#)': 'sostenidos', 'Bemoles (b)': 'bemoles'}[notation]
     st.divider()
     if st.button('🔄 Actualizar canciones', use_container_width=True):
         songs_from_notion.clear()
         content_from_notion.clear()
+        lyric_index.clear()
         st.rerun()
-    st.caption('Caná v0.3.3 · Solo lectura de Notion · Solo cantos con Estado = Público.')
+    st.caption('Caná v0.3.4 · Solo lectura de Notion · Cantos con Estado = Público.')
 
-filtered = [song for song in songs if (not search or api.normalized(search) in api.normalized(api.song_title(song)))
-            and (category == 'Todas' or category in (get_multiselect(song, 'Categoria') or get_multiselect(song, 'Categoría')))]
+# Filtro global visible en móviles, incluso con el menú lateral cerrado.
+# El desplegable de Streamlit busca sólo entre las etiquetas (títulos), por
+# eso añadimos este campo para encontrar frases dentro del texto de los cantos.
+if 'cana_search_query' not in st.session_state:
+    st.session_state['cana_search_query'] = ''
+query = st.text_input(
+    '🔎 Buscar por título o letra',
+    key='cana_search_query',
+    placeholder='Ej.: a la roca de mi salvación',
+    help='Escribe una parte del nombre o una frase de la letra y selecciona el canto.',
+).strip()
+normalized_query = api.normalized(query)
+
+candidates = [song for song in songs if
+              category == 'Todas' or category in (get_multiselect(song, 'Categoria') or get_multiselect(song, 'Categoría'))]
+
+# No hacemos peticiones adicionales a Notion al abrir el cancionero.
+# Las letras se indexan sólo cuando alguien efectivamente hace una búsqueda.
+lyrics = {}
+if len(normalized_query) >= 3:
+    with st.spinner('Buscando en las letras de los cantos…'):
+        lyrics, failures = lyric_index(tuple(song['id'] for song in songs))
+    if failures:
+        st.caption(f'No se pudieron indexar {failures} canción(es). Si falta algún resultado, pulsa Actualizar canciones.')
+
+filtered = [song for song in candidates
+            if not normalized_query
+            or normalized_query in api.normalized(api.song_title(song))
+            or (len(normalized_query) >= 3 and normalized_query in lyrics.get(song['id'], ''))]
 
 if not filtered:
-    st.info('No hay canciones para este filtro. Comprueba el campo Estado o cambia la búsqueda.')
+    st.info('No encontré canciones con esa frase. Prueba con otras palabras o cambia la categoría.')
     st.stop()
 
-# Lista desplegable con búsqueda incorporada: la letra aparece justo debajo.
-# No se muestran decenas de botones antes de la canción en pantallas pequeñas.
+# Separamos la canción mostrada de la búsqueda dentro del selectbox. Cuando
+# el usuario escoge una opción, el selector se monta otra vez vacío, listo para
+# buscar un nuevo canto, sin borrar el título de la canción actualmente abierta.
 ids = [song['id'] for song in filtered]
 by_id = {song['id']: song for song in filtered}
-if st.session_state.get('selected_song') not in ids:
-    st.session_state['selected_song'] = ids[0]
+if 'cana_active_song' not in st.session_state:
+    st.session_state['cana_active_song'] = ids[0]
+if st.session_state['cana_active_song'] not in ids:
+    st.session_state['cana_active_song'] = ids[0]
+if 'cana_picker_revision' not in st.session_state:
+    st.session_state['cana_picker_revision'] = 0
+picker_key = f'cana_picker_{st.session_state["cana_picker_revision"]}'
+
+
+def select_a_song():
+    selected = st.session_state.get(picker_key)
+    if selected:
+        st.session_state['cana_active_song'] = selected
+        st.session_state['cana_picker_revision'] += 1
+        st.session_state['cana_search_query'] = ''
+
 
 st.selectbox(
-    '🎵 Buscar o seleccionar canción',
+    '🎵 Seleccionar canción',
     options=ids,
+    index=None,
+    placeholder='Toca para elegir o buscar otra canción…',
     format_func=lambda song_id: api.song_title(by_id[song_id]),
-    key='selected_song',
-    help='Abre la lista o escribe parte del título para encontrar un canto.',
+    key=picker_key,
+    on_change=select_a_song,
+    help='Puedes escribir parte del título en esta lista. Al elegir una canción, el buscador se limpia para la siguiente.',
 )
-current = by_id[st.session_state['selected_song']]
+current = by_id[st.session_state['cana_active_song']]
 title = api.song_title(current)
 base_root, original_key = root_key(current)
 step_key = 'transposition_' + current['id']
@@ -208,7 +287,8 @@ st.caption(' · '.join(metadata))
 
 if base_root:
     index = (pitch_class(base_root) + st.session_state[step_key]) % 12
-    current_key = PREFERRED[index] + ('m' if api.normalized(get_select(current, 'Estructura')) == 'menor' else '')
+    tone_names = {'sostenidos': SHARPS, 'bemoles': FLATS, 'auto': PREFERRED}[notation_code]
+    current_key = tone_names[index] + ('m' if api.normalized(get_select(current, 'Estructura')) == 'menor' else '')
 else:
     current_key = '—'
 
@@ -260,4 +340,4 @@ else:
         with st.expander('Diagnóstico de líneas amarillas no reconocidas'):
             st.caption('Si continúa el error, comparte únicamente este diagnóstico (no contiene tu token de Notion).')
             st.code('\n'.join(repr(text) for text in unresolved), language='text')
-    st.caption('Vista de solo lectura. Caná v0.3.3 conserva las columnas de los acordes; si en Notion un acorde está sobre la sílaba equivocada, corrige únicamente esa canción y pulsa Actualizar canciones. Revisa el resultado musical antes de usarlo en vivo.')
+    st.caption('Vista de solo lectura. Caná v0.3.4 conserva las columnas de los acordes; si en Notion un acorde está sobre la sílaba equivocada, corrige únicamente esa canción y pulsa Actualizar canciones. Revisa el resultado musical antes de usarlo en vivo.')

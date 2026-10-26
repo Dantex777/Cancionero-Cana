@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.3.2: visor de solo lectura para canciones de Notion."""
+"""Cancionero Caná v0.3.3: interfaz compacta para móvil."""
 from pathlib import Path
 import os
 import sys
@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from musica import CSS, music_from_blocks, render_song, pitch_class, PREFERRED
 
 st.set_page_config(page_title='Cancionero Caná', page_icon='🎶', layout='wide',
-                   initial_sidebar_state='expanded')
+                   initial_sidebar_state='collapsed')
 
 # Se usa la misma .env y el mismo módulo de conexión que funcionó en PowerShell.
 load_dotenv(Path(__file__).with_name('.env'))
@@ -98,13 +98,44 @@ def root_key(page):
 
 st.markdown("""
 <style>
-.block-container {max-width:1250px; padding-top:2rem;}
-.main-title {font-size:2.4rem; font-weight:750; margin-bottom:0px;}
-.subhead {color:#a8abb6; margin-bottom:26px;}
+/* Evita los márgenes de escritorio en las pantallas de móviles. */
+.block-container {max-width:1050px; padding-top:1.25rem;}
+.main-title {font-size:2.1rem; font-weight:750; margin:0;}
+.subhead {color:#a8abb6; margin-bottom:1.1rem; font-size:.9rem;}
 [data-testid='stSidebar'] {background:#18191f;}
+
+/* Barra de tono: cuatro controles siempre en una sola fila,
+   incluso cuando Streamlit apila las columnas en un móvil. */
+.st-key-cana_toneline [data-testid='stHorizontalBlock'] {
+    flex-wrap:nowrap !important;
+    gap:.35rem !important;
+    align-items:center !important;
+}
+.st-key-cana_toneline [data-testid='stColumn'] {
+    min-width:0 !important;
+    width:auto !important;
+}
+.st-key-cana_toneline [data-testid='stButton'] button {
+    min-height:2.25rem;
+    padding:.25rem .4rem;
+    white-space:nowrap;
+    font-size:.87rem;
+}
+.cana-tone-label {font-weight:750; font-size:1.04rem; white-space:nowrap;}
+
+@media (max-width:640px) {
+  .block-container {padding:0.75rem 0.7rem 3rem;}
+  .main-title {font-size:1.55rem;}
+  .subhead {font-size:.78rem; margin-bottom:.6rem;}
+  .st-key-cana_toneline [data-testid='stHorizontalBlock'] {gap:.2rem !important;}
+  .st-key-cana_toneline [data-testid='stButton'] button {
+      font-size:.76rem; padding:.25rem .1rem;
+  }
+  .cana-tone-label {font-size:.87rem;}
+}
 </style>
 """, unsafe_allow_html=True)
-st.markdown('<div class="main-title">🎶 Cancionero Caná</div><div class="subhead">Cantos, acordes y transposición en tiempo real</div>',
+st.markdown('<div class="main-title">🎶 Cancionero Caná</div><div class="subhead">Letras y acordes con transposición</div>',
             unsafe_allow_html=True)
 
 if not api.TOKEN:
@@ -123,12 +154,12 @@ songs = [song for song in songs if is_published(song)]
 songs.sort(key=lambda x: api.normalized(api.song_title(x)))
 
 with st.sidebar:
-    st.header('Buscar canciones')
+    st.header('Buscar y ajustar')
     search = st.text_input('Título', placeholder='Busca un canto...')
     categories = sorted({c for song in songs for c in get_multiselect(song, 'Categoria') or get_multiselect(song, 'Categoría')})
     category = st.selectbox('Categoría', ['Todas'] + categories)
     st.divider()
-    font_size = st.slider('Tamaño de la letra', 14, 28, 18)
+    font_size = st.slider('Tamaño de la letra', 12, 28, 14, key='cana_font_size')
     show_chords = st.toggle('Mostrar acordes', value=True)
     prevent_overlap = st.toggle('Evitar que se encimen los acordes', value=True, help='Si dos acordes transportados chocan, los coloca en distintas líneas sin cambiar la letra.')
     notation = st.selectbox('Enarmonía', ['Automática', 'Sostenidos (#)', 'Bemoles (b)'])
@@ -138,7 +169,7 @@ with st.sidebar:
         songs_from_notion.clear()
         content_from_notion.clear()
         st.rerun()
-    st.caption('Caná v0.3.2 · Solo lectura de Notion · Se muestran los cantos con Estado = Publico.')
+    st.caption('Caná v0.3.3 · Solo lectura de Notion · Solo cantos con Estado = Público.')
 
 filtered = [song for song in songs if (not search or api.normalized(search) in api.normalized(api.song_title(song)))
             and (category == 'Todas' or category in (get_multiselect(song, 'Categoria') or get_multiselect(song, 'Categoría')))]
@@ -147,75 +178,86 @@ if not filtered:
     st.info('No hay canciones para este filtro. Comprueba el campo Estado o cambia la búsqueda.')
     st.stop()
 
-left, right = st.columns([1, 2.6], gap='large')
-with left:
-    st.subheader(f'Canciones ({len(filtered)})')
-    ids = [song['id'] for song in filtered]
-    if 'selected_song' not in st.session_state or st.session_state.selected_song not in ids:
-        st.session_state.selected_song = ids[0]
-    for song in filtered:
-        if st.button('♫ ' + api.song_title(song), key='song_' + song['id'],
-                     use_container_width=True, type='primary' if song['id'] == st.session_state.selected_song else 'secondary'):
-            st.session_state.selected_song = song['id']
-            st.rerun()
+# Lista desplegable con búsqueda incorporada: la letra aparece justo debajo.
+# No se muestran decenas de botones antes de la canción en pantallas pequeñas.
+ids = [song['id'] for song in filtered]
+by_id = {song['id']: song for song in filtered}
+if st.session_state.get('selected_song') not in ids:
+    st.session_state['selected_song'] = ids[0]
 
-current = next(song for song in filtered if song['id'] == st.session_state.selected_song)
+st.selectbox(
+    '🎵 Buscar o seleccionar canción',
+    options=ids,
+    format_func=lambda song_id: api.song_title(by_id[song_id]),
+    key='selected_song',
+    help='Abre la lista o escribe parte del título para encontrar un canto.',
+)
+current = by_id[st.session_state['selected_song']]
 title = api.song_title(current)
 base_root, original_key = root_key(current)
 step_key = 'transposition_' + current['id']
 if step_key not in st.session_state:
     st.session_state[step_key] = 0
 
-with right:
-    st.subheader(title)
-    cols = st.columns([1.5, 1, 1])
-    with cols[0]:
-        st.caption('Tonalidad original: ' + (original_key or 'Sin definir'))
-    with cols[1]:
-        st.caption('Estructura: ' + (get_select(current, 'Estructura') or '—'))
-    with cols[2]:
-        st.caption('Nota: ' + (get_select(current, 'Nota') or '—'))
+st.subheader(title)
+metadata = [
+    'Original: ' + (original_key or 'Sin definir'),
+    'Estructura: ' + (get_select(current, 'Estructura') or '—'),
+]
+st.caption(' · '.join(metadata))
 
-    c1, c2, c3, c4 = st.columns([1.2, 1.5, 1.2, 1.7], vertical_alignment='center')
-    with c1:
-        if st.button('− 1 semitono', use_container_width=True):
-            st.session_state[step_key] -= 1
-    with c2:
-        if base_root:
-            index = (pitch_class(base_root) + st.session_state[step_key]) % 12
-            shown = PREFERRED[index] + ('m' if api.normalized(get_select(current, 'Estructura')) == 'menor' else '')
-            st.markdown(f'**Tono: {shown}**')
-        else:
-            st.markdown('**Tono: —**')
-    with c3:
-        if st.button('+ 1 semitono', use_container_width=True):
-            st.session_state[step_key] += 1
-    with c4:
-        if st.button('↺ Tono original', use_container_width=True):
-            st.session_state[step_key] = 0
+if base_root:
+    index = (pitch_class(base_root) + st.session_state[step_key]) % 12
+    current_key = PREFERRED[index] + ('m' if api.normalized(get_select(current, 'Estructura')) == 'menor' else '')
+else:
+    current_key = '—'
 
-    if not base_root:
-        st.warning('Esta canción no tiene una nota original identificada en la base. Puedes cambiar sus acordes, pero revisa el campo Nota.')
-    st.caption(f'Semitonos desde el original: {st.session_state[step_key]:+d}')
-
-    try:
-        with st.spinner('Cargando letra y acordes…'):
-            music = content_from_notion(current['id'])
-    except (SystemExit, ValueError, KeyError, OSError) as error:
-        st.error('No pude leer el contenido de esta canción. Comprueba el acceso de Notion.')
-        st.caption(str(error))
-        st.stop()
-
-    if not music:
-        st.warning('La canción no contiene texto legible todavía.')
-    else:
-        st.markdown(CSS, unsafe_allow_html=True)
-        st.markdown(render_song(music, st.session_state[step_key], show_chords, font_size, notation_code, prevent_overlap),
+# Sin filas gigantes: se ve como «Tono: G  [−1] [+1] [↺ Original]».
+with st.container(key='cana_toneline'):
+    ctone, cdown, cup, coriginal = st.columns(
+        [1.7, .9, .9, 1.8], gap='small', vertical_alignment='center'
+    )
+    with ctone:
+        st.markdown(f'<div class="cana-tone-label">Tono: {current_key}</div>',
                     unsafe_allow_html=True)
-        unresolved = [item['text'] for item in music if item.get('unparsed_yellow')]
-        if unresolved:
-            st.warning(f'{len(unresolved)} línea(s) con amarillo aún no se reconocieron como acordes. No se transponen por seguridad.')
-            with st.expander('Diagnóstico de líneas amarillas no reconocidas'):
-                st.caption('Si continúa el error, comparte únicamente este diagnóstico (no contiene tu token de Notion).')
-                st.code('\n'.join(repr(text) for text in unresolved), language='text')
-        st.caption('Vista de solo lectura. Caná v0.3.2 conserva las columnas de los acordes; si en Notion un acorde está sobre la sílaba equivocada, corrige únicamente esa canción y pulsa Actualizar canciones. Revisa el resultado musical antes de usarlo en vivo.')
+    with cdown:
+        if st.button('−1', key='minus_'+current['id'],
+                     use_container_width=True, help='Bajar un semitono'):
+            st.session_state[step_key] -= 1
+            st.rerun()
+    with cup:
+        if st.button('+1', key='plus_'+current['id'],
+                     use_container_width=True, help='Subir un semitono'):
+            st.session_state[step_key] += 1
+            st.rerun()
+    with coriginal:
+        if st.button('↺ Original', key='reset_'+current['id'],
+                     use_container_width=True, help='Volver al tono original'):
+            st.session_state[step_key] = 0
+            st.rerun()
+
+if not base_root:
+    st.warning('Esta canción no tiene una nota original identificada en la base. Puedes cambiar sus acordes, pero revisa el campo Nota.')
+st.caption(f'Semitonos desde el original: {st.session_state[step_key]:+d}')
+
+try:
+    with st.spinner('Cargando letra y acordes…'):
+        music = content_from_notion(current['id'])
+except (SystemExit, ValueError, KeyError, OSError) as error:
+    st.error('No pude leer el contenido de esta canción. Comprueba el acceso de Notion.')
+    st.caption(str(error))
+    st.stop()
+
+if not music:
+    st.warning('La canción no contiene texto legible todavía.')
+else:
+    st.markdown(CSS, unsafe_allow_html=True)
+    st.markdown(render_song(music, st.session_state[step_key], show_chords, font_size, notation_code, prevent_overlap),
+                unsafe_allow_html=True)
+    unresolved = [item['text'] for item in music if item.get('unparsed_yellow')]
+    if unresolved:
+        st.warning(f'{len(unresolved)} línea(s) con amarillo aún no se reconocieron como acordes. No se transponen por seguridad.')
+        with st.expander('Diagnóstico de líneas amarillas no reconocidas'):
+            st.caption('Si continúa el error, comparte únicamente este diagnóstico (no contiene tu token de Notion).')
+            st.code('\n'.join(repr(text) for text in unresolved), language='text')
+    st.caption('Vista de solo lectura. Caná v0.3.3 conserva las columnas de los acordes; si en Notion un acorde está sobre la sílaba equivocada, corrige únicamente esa canción y pulsa Actualizar canciones. Revisa el resultado musical antes de usarlo en vivo.')

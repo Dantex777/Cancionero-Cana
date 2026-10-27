@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.3.7: navegación y búsqueda por letra en la barra lateral."""
+"""Cancionero Caná v0.3.8: control de superposición como plan B desactivado."""
 from pathlib import Path
 import html
 import os
@@ -404,7 +404,13 @@ with st.sidebar:
         'Comic Sans': 'comic', 'Futura': 'futura', 'Helvetica': 'helvetica',
     }[font_style]
     show_chords = st.toggle('Mostrar acordes', value=True)
-    prevent_overlap = st.toggle('Evitar que se encimen los acordes', value=True)
+    prevent_overlap = st.toggle(
+        'Separar acordes amontonados (plan B)',
+        value=False,
+        key='cana_overlap_fallback_v038',
+        help='Actívalo solo si los acordes se amontonan. Algunos acordes pueden pasar a otra línea.',
+    )
+    st.caption('Activar solo como plan B ante acordes amontonados; puede mover acordes a otra línea.')
     notation = st.selectbox(
         'Enarmonía', ['Sostenidos (#)', 'Bemoles (b)', 'Automática'],
         key='cana_notation'

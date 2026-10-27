@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.3.5: portada y paleta visual, con la búsqueda y transposición intactas."""
+"""Cancionero Caná v0.3.6: portada y paleta visual, con la búsqueda y transposición intactas."""
 from pathlib import Path
 import html
 import os
@@ -142,14 +142,27 @@ st.markdown("""
     box-shadow:0 11px 32px rgba(6,7,21,.24);
 }
 .cana-brand-title {
+    display:flex; align-items:center; gap:.55rem; flex-wrap:wrap;
     font-size:2.10rem; line-height:1.25; font-weight:800; margin: .45rem 0 .10rem;
-    color:#b7b2ff;
+}
+.cana-brand-text {
     background:linear-gradient(110deg,#c7aaff 10%,#8bc7f7 78%);
     -webkit-background-clip:text; background-clip:text;
     -webkit-text-fill-color:transparent;
 }
+.cana-brand-icon {
+    display:inline-block;
+    font-family:'Segoe UI Symbol','Apple Symbols',sans-serif;
+    font-size:1.05em;
+    color:#f5f5f7 !important;
+    -webkit-text-fill-color:#f5f5f7 !important;
+    -webkit-text-stroke:1.15px #08090e;
+    text-shadow:0 0 1px #05060a, 1px 1px 0 #05060a, -1px -1px 0 #05060a;
+    filter:grayscale(1);
+}
 .cana-song-title {
-    color:#f4c58d; font-size:1.75rem; font-weight:800;
+    color:#f4c58d !important; -webkit-text-fill-color:#f4c58d !important;
+    font-size:1.75rem; font-weight:800;
     line-height:1.2; margin:1rem 0 .45rem;
 }
 
@@ -202,7 +215,7 @@ if PORTADA.is_file():
         st.image(str(PORTADA), use_container_width=True)
 else:
     st.warning('No se encontró portada_cantoral_cana.webp en la misma carpeta de app.py.')
-st.markdown('<h1 class="cana-brand-title">🎶 Cancionero Caná</h1><div class="subhead">Letras y acordes con transposición</div>',
+st.markdown('<div class="cana-brand-title"><span class="cana-brand-icon">🎶︎</span><span class="cana-brand-text">Cancionero Caná</span></div><div class="subhead">Letras y acordes con transposición</div>',
             unsafe_allow_html=True)
 
 if not api.TOKEN:
@@ -226,6 +239,13 @@ with st.sidebar:
     category = st.selectbox('Categoría', ['Todas'] + categories)
     st.divider()
     font_size = st.slider('Tamaño de la letra', 12, 28, 14, key='cana_font_size')
+    font_style = st.selectbox(
+        'Tipo de letra de las canciones',
+        ['Mono (alineación original)', 'Comic Sans', 'Futura', 'Helvetica'],
+        key='cana_song_font',
+        help='Mono mantiene exactamente las columnas de Notion. Las otras fuentes colocan los acordes sobre las posiciones de las letras; comprueba las canciones antes de una celebración.',
+    )
+    font_code = {'Mono (alineación original)':'mono', 'Comic Sans':'comic', 'Futura':'futura', 'Helvetica':'helvetica'}[font_style]
     show_chords = st.toggle('Mostrar acordes', value=True)
     prevent_overlap = st.toggle('Evitar que se encimen los acordes', value=True, help='Si dos acordes transportados chocan, los coloca en distintas líneas sin cambiar la letra.')
     notation = st.selectbox('Enarmonía', ['Sostenidos (#)', 'Bemoles (b)', 'Automática'], key='cana_notation')
@@ -236,7 +256,7 @@ with st.sidebar:
         content_from_notion.clear()
         lyric_index.clear()
         st.rerun()
-    st.caption('Caná v0.3.5 · Solo lectura de Notion · Cantos con Estado = Público.')
+    st.caption('Caná v0.3.6 · Solo lectura de Notion · Cantos con Estado = Público.')
 
 # Filtro global visible en móviles, incluso con el menú lateral cerrado.
 # El desplegable de Streamlit busca sólo entre las etiquetas (títulos), por
@@ -311,7 +331,7 @@ step_key = 'transposition_' + current['id']
 if step_key not in st.session_state:
     st.session_state[step_key] = 0
 
-st.markdown(f'<h2 class="cana-song-title">{html.escape(title)}</h2>', unsafe_allow_html=True)
+st.markdown(f'<div class="cana-song-title" style="color:#f4c58d !important; -webkit-text-fill-color:#f4c58d !important;">{html.escape(title)}</div>', unsafe_allow_html=True)
 metadata = [
     'Original: ' + (original_key or 'Sin definir'),
     'Estructura: ' + (get_select(current, 'Estructura') or '—'),
@@ -365,7 +385,7 @@ if not music:
     st.warning('La canción no contiene texto legible todavía.')
 else:
     st.markdown(CSS, unsafe_allow_html=True)
-    st.markdown(render_song(music, st.session_state[step_key], show_chords, font_size, notation_code, prevent_overlap),
+    st.markdown(render_song(music, st.session_state[step_key], show_chords, font_size, notation_code, prevent_overlap, font_code),
                 unsafe_allow_html=True)
     unresolved = [item['text'] for item in music if item.get('unparsed_yellow')]
     if unresolved:
@@ -373,4 +393,19 @@ else:
         with st.expander('Diagnóstico de líneas amarillas no reconocidas'):
             st.caption('Si continúa el error, comparte únicamente este diagnóstico (no contiene tu token de Notion).')
             st.code('\n'.join(repr(text) for text in unresolved), language='text')
-    st.caption('Vista de solo lectura. Caná v0.3.5 conserva las columnas de los acordes; si en Notion un acorde está sobre la sílaba equivocada, corrige únicamente esa canción y pulsa Actualizar canciones. Revisa el resultado musical antes de usarlo en vivo.')
+    st.caption('Vista de solo lectura. Caná v0.3.6 conserva las columnas de los acordes; si en Notion un acorde está sobre la sílaba equivocada, corrige únicamente esa canción y pulsa Actualizar canciones. Revisa el resultado musical antes de usarlo en vivo.')
+
+
+# El pie aparece después de los cantos, sin modificar la estructura musical.
+st.markdown("""
+<style>
+.cana-footer {border-top:1px solid #393945; margin:2.0rem 0 0; padding:1.35rem .15rem 2rem; font-size:.90rem;}
+.cana-footer-note {color:#c9a7f5; font-style:italic; line-height:1.6; margin-bottom:.80rem;}
+.cana-footer-help {color:#eceaf1; line-height:1.6;}
+.cana-footer a, .cana-footer a:visited {color:#d3c0fb; text-decoration:underline; text-underline-offset:2px;}
+</style>
+<div class="cana-footer">
+  <div class="cana-footer-note">Cantoral en construcción XD (Si llegaste hasta aquí, ten paciencia, pronto completaremos el cancionero 😉)</div>
+  <div class="cana-footer-help">Si quieres ayudar o ser parte de completar este cancionero, escríbeme a <a href="mailto:davidfg77777@gmail.com">davidfg77777@gmail.com</a></div>
+</div>
+""", unsafe_allow_html=True)

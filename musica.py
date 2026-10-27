@@ -1,4 +1,4 @@
-"""Lector y transpositor Caná v0.3.2 para textos musicales de Notion.
+"""Lector y transpositor Caná v0.3.6 para textos musicales de Notion.
 
 No modifica Notion. Procesa principalmente líneas de acordes amarillos
 seguidas por líneas de letra blanca, tal como se editan en Cancionero Caná.
@@ -367,11 +367,52 @@ def highlight_delimiters(text: str) -> str:
     return re.sub(r'([()])', r'<span class="cana-delimiter">\1</span>', escaped)
 
 
+
+def render_anchored_pair(chord_rows: list[str], lyrics: str, italic: bool = False) -> str | None:
+    """Acordes encima de las letras usando anclas reales, no espacios de fuente proporcional.
+
+    La columna de Notion indica un índice de carácter; el acorde se ancla a
+    esa letra en vez de hacer coincidir dos líneas de anchuras diferentes.
+    Si el acorde supera el final de la letra, devolvemos None y usamos
+    la representación monoespaciada exacta para ese par.
+    """
+    if not lyrics:
+        return None
+    anchors: dict[int, list[tuple[int, str]]] = {}
+    for row_index, row in enumerate(chord_rows):
+        # Conserva cualquier progresión entre paréntesis como una unidad.
+        for match in re.finditer(r'\([^)]*\)|\S+', row):
+            if match.start() >= len(lyrics):
+                return None
+            anchors.setdefault(match.start(), []).append((len(chord_rows)-row_index, match.group()))
+    bis_spots: set[int] = set()
+    for match in re.finditer(r'(?<!\w)BIS(?!\w)', lyrics, flags=re.IGNORECASE):
+        bis_spots.update(range(match.start(), match.end()))
+    body = []
+    for i, ch in enumerate(lyrics):
+        safe = html.escape(ch)
+        if i in bis_spots:
+            safe = f'<span class="cana-repetition">{safe}</span>'
+        if i in anchors:
+            notes = ''.join(
+                f'<span class="cana-float-chord" style="--note-row:{row_number}">{highlight_delimiters(label)}</span>'
+                for row_number, label in anchors[i]
+            )
+            body.append(f'<span class="cana-note-anchor">{notes}{safe}</span>')
+        else:
+            body.append(safe)
+    italic_class = ' cana-italic' if italic else ''
+    return (f'<div class="cana-anchored-pair" style="--chord-rows:{len(chord_rows)}">'
+            f'<div class="cana-lyric cana-anchored-lyrics{italic_class}">{"".join(body)}</div>'
+            f'</div>')
+
+
 def render_song(items: list[dict], steps: int = 0, show_chords: bool = True,
                 font_size: int = 17, notation: str = 'auto',
-                prevent_overlap: bool = True) -> str:
+                prevent_overlap: bool = True, font_style: str = 'mono') -> str:
     size = min(34, max(13, int(font_size)))
-    parts = [f'<div class="cana-song" style="--fz:{size}px">']
+    font_style = font_style if font_style in ('mono', 'comic', 'futura', 'helvetica') else 'mono'
+    parts = [f'<div class="cana-song cana-font-{font_style}" style="--fz:{size}px">']
     for item in items:
         typ = item['type']
         if typ == 'blank':
@@ -398,15 +439,24 @@ def render_song(items: list[dict], steps: int = 0, show_chords: bool = True,
             lyric = item.get('lyrics') if typ == 'pair' else None
             chord_rows, aligned_lyric = aligned_tracks(item['chords'], lyric, steps, notation,
                                                        prevent_overlap)
-            if show_chords:
-                for chord_row in chord_rows:
-                    parts.append(f'<div class="cana-chordline">{highlight_delimiters(chord_row)}</div>')
+            # Para fuentes proporcionales, anclamos cada acorde al carácter
+            # original de Notion. Mono conserva exactamente el formato probado.
+            anchored = (render_anchored_pair(chord_rows, aligned_lyric, item.get('italic', False))
+                        if (typ == 'pair' and show_chords and font_style != 'mono') else None)
+            if anchored:
+                parts.append(anchored)
+            else:
+                if show_chords:
+                    for chord_row in chord_rows:
+                        parts.append(f'<div class="cana-chordline">{highlight_delimiters(chord_row)}</div>')
+                if typ == 'pair':
+                    italic_class = ' cana-italic' if item.get('italic') else ''
+                    fallback_class = ' cana-force-mono' if (font_style != 'mono' and show_chords) else ''
+                    parts.append(f'<div class="cana-lyric{italic_class}{fallback_class}">{styled_lyrics(aligned_lyric)}</div>')
+                elif show_chords:
+                    parts.append('<div class="cana-progression-gap"></div>')
             if typ == 'pair':
-                italic_class = ' cana-italic' if item.get('italic') else ''
-                parts.append(f'<div class="cana-lyric{italic_class}">{styled_lyrics(aligned_lyric)}</div>')
                 parts.append('<div class="cana-verse-gap"></div>')
-            elif show_chords:
-                parts.append('<div class="cana-progression-gap"></div>')
     parts.append('</div>')
     return ''.join(parts)
 
@@ -424,6 +474,23 @@ CSS = """
 .cana-song .cana-inline-chord {color:#ffce58; font-weight:750;}
 .cana-song .cana-lyric {color:#f2f2f4; white-space:pre; tab-size:4; width:max-content;
                        font-family:inherit;}
+/* Tipografías opcionales únicamente dentro del visor musical. */
+.cana-font-comic .cana-lyric:not(.cana-force-mono) {font-family:'Comic Sans MS','Comic Sans',cursive;}
+.cana-font-futura .cana-lyric:not(.cana-force-mono) {font-family:Futura,'Trebuchet MS',sans-serif;}
+.cana-font-helvetica .cana-lyric:not(.cana-force-mono) {font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;}
+.cana-song .cana-force-mono {font-family:Consolas,'Courier New',monospace;}
+/* Las anclas mantienen los acordes encima del carácter de Notion aun con letras
+   proporcionales. Nunca insertamos espacios en el texto de la canción. */
+.cana-song .cana-anchored-pair {padding-top:calc(var(--chord-rows) * 1.37em); position:relative; width:max-content;}
+.cana-song .cana-anchored-lyrics {font-size:inherit; line-height:1.36; white-space:pre;}
+.cana-song .cana-note-anchor {position:relative; display:inline;}
+.cana-song .cana-float-chord {
+    position:absolute; left:0; bottom:calc(var(--note-row) * 1.37em);
+    font-family:Consolas,'Courier New',monospace !important; font-style:normal;
+    font-size:inherit; line-height:1.20; color:#ffce58; font-weight:750;
+    white-space:pre; width:max-content; pointer-events:none;
+}
+
 .cana-song .cana-italic {font-style:italic;}
 .cana-song .cana-unknown {color:#ffce58;}
 .cana-song .cana-verse-gap {height:.70em;}

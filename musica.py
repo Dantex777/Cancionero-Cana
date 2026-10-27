@@ -221,7 +221,7 @@ SECTION_LABELS = {'INTRO', 'VERSO', 'CORO', 'PUENTE', 'FINAL', 'ESTRIBILLO', 'RE
 def is_section(line: MusicLine) -> bool:
     title = line.text.strip().upper()
     title = title.strip(' :.-')
-    section_re = r"(?:INTRO|VERSO|ESTROFA|CORO|PUENTE|FINAL|ESTRIBILLO|REFR[AÁ]N|PRE[- ]?CORO|INSTRUMENTAL|RAP|OUTRO)(?:\s+(?:[0-9]+|[IVX]+))?"
+    section_re = r"(?:INTRO|VERSO|ESTROFA|CORO|PUENTE|FINAL|ESTRIBILLO|REFR[AÁ]N|PRE[- ]?CORO|INSTRUMENTAL|RAP|OUTRO|BIS)(?:\s+(?:[0-9]+|[IVX]+))?(?:\s*\([^)]{1,35}\))?"
     return (line.kind.startswith('heading_') or
             bool(re.fullmatch(section_re, title)) or
             line.color in ('gray', 'gray_background'))
@@ -350,6 +350,17 @@ def aligned_tracks(chords: list[tuple[int, str]], lyrics: str | None,
     return rows, lyric
 
 
+def styled_lyrics(text: str) -> str:
+    """Solo resalta la indicación BIS; el resto de la letra sigue blanco.
+
+    Escapa primero el texto de Notion para no permitir HTML arbitrario.
+    El span no cambia el ancho de las palabras ni los espacios monoespaciados.
+    """
+    safe = html.escape(text)
+    return re.sub(r'(?<!\w)(BIS)(?!\w)',
+                  r'<span class="cana-repetition">\1</span>', safe, flags=re.IGNORECASE)
+
+
 def highlight_delimiters(text: str) -> str:
     # Escape antes de crear etiquetas para que Notion nunca inserte HTML activo.
     escaped = html.escape(text)
@@ -366,21 +377,21 @@ def render_song(items: list[dict], steps: int = 0, show_chords: bool = True,
         if typ == 'blank':
             parts.append('<div class="cana-blank"></div>')
         elif typ == 'section':
-            parts.append(f'<div class="cana-section">{html.escape(item["text"])}</div>')
+            parts.append(f'<div class="cana-section">{styled_lyrics(item["text"])}</div>')
         elif typ == 'text':
             warning_class = ' cana-unknown' if item.get('unparsed_yellow') else ''
             italic_class = ' cana-italic' if item.get('italic') else ''
-            parts.append(f'<div class="cana-lyric{warning_class}{italic_class}">{html.escape(item["text"])}</div>')
+            parts.append(f'<div class="cana-lyric{warning_class}{italic_class}">{styled_lyrics(item["text"])}</div>')
         elif typ == 'inline_annotation':
             # Texto y acordes en una misma línea. No altera la letra normal.
             content, last = [], 0
             for start, end, chord in item['chords']:
-                content.append(html.escape(item['text'][last:start]))
+                content.append(styled_lyrics(item['text'][last:start]))
                 if show_chords:
                     content.append('<span class="cana-inline-chord">' +
                                    html.escape(transpose_chord(chord, steps, notation)) + '</span>')
                 last = end
-            content.append(html.escape(item['text'][last:]))
+            content.append(styled_lyrics(item['text'][last:]))
             italic_class = ' cana-italic' if item.get('italic') else ''
             parts.append(f'<div class="cana-lyric{italic_class}">{"".join(content)}</div>')
         elif typ in ('pair', 'chords'):
@@ -392,7 +403,7 @@ def render_song(items: list[dict], steps: int = 0, show_chords: bool = True,
                     parts.append(f'<div class="cana-chordline">{highlight_delimiters(chord_row)}</div>')
             if typ == 'pair':
                 italic_class = ' cana-italic' if item.get('italic') else ''
-                parts.append(f'<div class="cana-lyric{italic_class}">{html.escape(aligned_lyric)}</div>')
+                parts.append(f'<div class="cana-lyric{italic_class}">{styled_lyrics(aligned_lyric)}</div>')
                 parts.append('<div class="cana-verse-gap"></div>')
             elif show_chords:
                 parts.append('<div class="cana-progression-gap"></div>')
@@ -417,8 +428,9 @@ CSS = """
 .cana-song .cana-unknown {color:#ffce58;}
 .cana-song .cana-verse-gap {height:.70em;}
 .cana-song .cana-progression-gap {height:1.15em;}
-.cana-song .cana-section {color:#a5a8b3; font-size:.81em; font-weight:750;
+.cana-song .cana-section {color:#adc2fa; font-size:.81em; font-weight:750;
                           letter-spacing:.055em; margin:20px 0 11px; white-space:pre;}
+.cana-song .cana-repetition {color:#adc2fa; font-weight:800;}
 .cana-song .cana-blank {height:.65em;}
 @media (max-width:640px) {.cana-song {padding:16px 12px 25px;}}
 </style>

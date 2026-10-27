@@ -1,5 +1,6 @@
-"""Cancionero Caná v0.3.4: búsqueda por letra, selector limpio y enarmonía."""
+"""Cancionero Caná v0.3.5: portada y paleta visual, con la búsqueda y transposición intactas."""
 from pathlib import Path
+import html
 import os
 import sys
 import time
@@ -132,6 +133,26 @@ def root_key(page):
 
 st.markdown("""
 <style>
+
+/* Identidad visual del Cantoral Caná (colores accesibles sobre modo oscuro). */
+.st-key-cana_banner {margin-bottom:.30rem;}
+.st-key-cana_banner [data-testid="stImage"] img {
+    width:100%; max-height:310px; object-fit:cover; object-position:center 52%;
+    border-radius:15px; border:1px solid #393852;
+    box-shadow:0 11px 32px rgba(6,7,21,.24);
+}
+.cana-brand-title {
+    font-size:2.10rem; line-height:1.25; font-weight:800; margin: .45rem 0 .10rem;
+    color:#b7b2ff;
+    background:linear-gradient(110deg,#c7aaff 10%,#8bc7f7 78%);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent;
+}
+.cana-song-title {
+    color:#f4c58d; font-size:1.75rem; font-weight:800;
+    line-height:1.2; margin:1rem 0 .45rem;
+}
+
 /* Evita los márgenes de escritorio en las pantallas de móviles. */
 .block-container {max-width:1050px; padding-top:1.25rem;}
 .main-title {font-size:2.1rem; font-weight:750; margin:0;}
@@ -159,6 +180,11 @@ st.markdown("""
 
 @media (max-width:640px) {
   .block-container {padding:0.75rem 0.7rem 3rem;}
+  .st-key-cana_banner [data-testid="stImage"] img {
+      max-height:none; height:auto; object-fit:contain; border-radius:10px;
+  }
+  .cana-brand-title {font-size:1.55rem; margin:.30rem 0 .1rem;}
+  .cana-song-title {font-size:1.30rem; margin:.8rem 0 .4rem;}
   .main-title {font-size:1.55rem;}
   .subhead {font-size:.78rem; margin-bottom:.6rem;}
   .st-key-cana_toneline [data-testid='stHorizontalBlock'] {gap:.2rem !important;}
@@ -169,7 +195,14 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-st.markdown('<div class="main-title">🎶 Cancionero Caná</div><div class="subhead">Letras y acordes con transposición</div>',
+# Esta imagen se guarda junto a app.py en GitHub; no depende de Notion ni de URLs temporales.
+PORTADA = Path(__file__).with_name('portada_cantoral_cana.webp')
+if PORTADA.is_file():
+    with st.container(key='cana_banner'):
+        st.image(str(PORTADA), use_container_width=True)
+else:
+    st.warning('No se encontró portada_cantoral_cana.webp en la misma carpeta de app.py.')
+st.markdown('<h1 class="cana-brand-title">🎶 Cancionero Caná</h1><div class="subhead">Letras y acordes con transposición</div>',
             unsafe_allow_html=True)
 
 if not api.TOKEN:
@@ -203,7 +236,7 @@ with st.sidebar:
         content_from_notion.clear()
         lyric_index.clear()
         st.rerun()
-    st.caption('Caná v0.3.4 · Solo lectura de Notion · Cantos con Estado = Público.')
+    st.caption('Caná v0.3.5 · Solo lectura de Notion · Cantos con Estado = Público.')
 
 # Filtro global visible en móviles, incluso con el menú lateral cerrado.
 # El desplegable de Streamlit busca sólo entre las etiquetas (títulos), por
@@ -278,7 +311,7 @@ step_key = 'transposition_' + current['id']
 if step_key not in st.session_state:
     st.session_state[step_key] = 0
 
-st.subheader(title)
+st.markdown(f'<h2 class="cana-song-title">{html.escape(title)}</h2>', unsafe_allow_html=True)
 metadata = [
     'Original: ' + (original_key or 'Sin definir'),
     'Estructura: ' + (get_select(current, 'Estructura') or '—'),
@@ -340,4 +373,4 @@ else:
         with st.expander('Diagnóstico de líneas amarillas no reconocidas'):
             st.caption('Si continúa el error, comparte únicamente este diagnóstico (no contiene tu token de Notion).')
             st.code('\n'.join(repr(text) for text in unresolved), language='text')
-    st.caption('Vista de solo lectura. Caná v0.3.4 conserva las columnas de los acordes; si en Notion un acorde está sobre la sílaba equivocada, corrige únicamente esa canción y pulsa Actualizar canciones. Revisa el resultado musical antes de usarlo en vivo.')
+    st.caption('Vista de solo lectura. Caná v0.3.5 conserva las columnas de los acordes; si en Notion un acorde está sobre la sílaba equivocada, corrige únicamente esa canción y pulsa Actualizar canciones. Revisa el resultado musical antes de usarlo en vivo.')

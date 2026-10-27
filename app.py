@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.3.8: control de superposición como plan B desactivado."""
+"""Cancionero Caná v0.4.0: catálogo opcional en el menú lateral."""
 from pathlib import Path
 import html
 import os
@@ -165,6 +165,15 @@ def root_key(page):
     return root, root + ('m' if minor else '')
 
 
+def catalogue_candidates(pages: list[dict], category: str, query: str) -> list[dict]:
+    """Filtra por título y categoría; conserva el orden alfabético recibido."""
+    term = api.normalized(query.strip())
+    return [page for page in pages if
+            (category == 'Todas' or category in
+             (get_multiselect(page, 'Categoria') or get_multiselect(page, 'Categoría'))) and
+            (not term or term in api.normalized(api.song_title(page)))]
+
+
 st.markdown("""
 <style>
 
@@ -220,6 +229,20 @@ st.markdown("""
     padding:.15rem .25rem .85rem .45rem; margin-bottom:.3rem;
     border-bottom:1px solid #343640;
 }
+/* Lista del catálogo: un renglón grande por canción para facilitar el uso táctil. */
+.st-key-cana_catalogue [data-testid='stButton'] button {
+    width:100%; justify-content:flex-start; text-align:left;
+    border:1px solid #3b3c51; border-left:3px solid #b9adfa;
+    background:#1d202a; color:#f4c58d;
+    min-height:2.65rem; height:auto; white-space:normal;
+    line-height:1.35; font-weight:650;
+}
+.st-key-cana_catalogue [data-testid='stButton'] button:hover {
+    background:#292c3a; border-color:#b9adfa;
+}
+.cana-catalogue-meta {font-size:.83rem; color:#aeb4c9; margin:-.40rem 0 .65rem .32rem;}
+.cana-catalogue-preview {font-size:.82rem; color:#dddde7; font-style:italic; margin:-.34rem 0 .85rem .32rem;}
+.cana-catalogue-letter {font-size:1.12rem; font-weight:760; color:#b9adfa; margin:1.3rem 0 .6rem;}
 
 
 /* La barra de tono se mantiene compacta en teléfonos. */
@@ -259,11 +282,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 # Esta imagen se guarda junto a app.py en GitHub; no depende de Notion ni de URLs temporales.
 PORTADA = Path(__file__).with_name('portada_cantoral_cana.webp')
-if PORTADA.is_file():
-    with st.container(key='cana_banner'):
-        st.image(str(PORTADA), use_container_width=True)
-else:
-    st.warning('No se encontró portada_cantoral_cana.webp en la misma carpeta de app.py.')
+# En el catálogo dejamos espacio para explorar la lista sin desplazarla por la portada.
+if not st.session_state.get('cana_catalog_view', False):
+    if PORTADA.is_file():
+        with st.container(key='cana_banner'):
+            st.image(str(PORTADA), use_container_width=True)
+    else:
+        st.warning('No se encontró portada_cantoral_cana.webp en la misma carpeta de app.py.')
 st.markdown('<div class="cana-brand-title"><span class="cana-brand-text">Cancionero Caná</span></div>',
             unsafe_allow_html=True)
 
@@ -294,11 +319,24 @@ if 'cana_picker_revision' not in st.session_state:
     st.session_state['cana_picker_revision'] = 0
 if 'cana_search_query' not in st.session_state:
     st.session_state['cana_search_query'] = ''
+if 'cana_catalog_view' not in st.session_state:
+    st.session_state['cana_catalog_view'] = False
+
+
+def show_catalogue():
+    """Abre una lista opcional, sin modificar la canción elegida."""
+    st.session_state['cana_catalog_view'] = True
+
+
+def hide_catalogue():
+    """Regresa a la canción que estaba abierta."""
+    st.session_state['cana_catalog_view'] = False
 
 
 def choose_song(song_id: str):
     """Cambia el canto desde resultados, y deja lista una nueva búsqueda."""
     st.session_state['cana_active_song'] = song_id
+    st.session_state['cana_catalog_view'] = False
     st.session_state['cana_search_query'] = ''
     st.session_state['cana_picker_revision'] += 1
 
@@ -389,6 +427,15 @@ with st.sidebar:
                 if len(matches) > 12:
                     st.caption(f'Se muestran 12 de {len(matches)}; afina la búsqueda para ver las demás.')
 
+    # 4. Acceso opcional a la lista completa, justo debajo de los buscadores.
+    if st.session_state['cana_catalog_view']:
+        st.button('← Volver a la canción', key='cana_catalog_back_sidebar',
+                  use_container_width=True, on_click=hide_catalogue)
+        st.caption('Estás viendo la biblioteca completa de cantos.')
+    else:
+        st.button('📚 Ver catálogo completo', key='cana_catalog_open_sidebar',
+                  use_container_width=True, on_click=show_catalogue)
+
     st.divider()
     # Las preferencias quedan después del buscador, como solicitó el usuario.
     st.subheader('Visualización')
@@ -426,7 +473,73 @@ with st.sidebar:
         lyric_index.clear()
         st.rerun()
 
-# El contenido principal no contiene formularios de búsqueda ni listas de cantos.
+# Vista alternativa opcional: biblioteca de títulos, sin cambiar de aplicación.
+# No consultamos las letras por defecto: Notion sólo se carga si el usuario
+# decide mostrar fragmentos. Esto evita llamadas innecesarias durante una misa.
+if st.session_state['cana_catalog_view']:
+    st.markdown('<div class="cana-song-title">Biblioteca de canciones</div>',
+                unsafe_allow_html=True)
+    st.caption('Explora todos los cantos publicados. Pulsa un título para abrir la canción y su transpositor.')
+    st.button('← Regresar al visor musical', on_click=hide_catalogue,
+              key='cana_catalog_back_main')
+
+    catalogue_query = st.text_input(
+        'Filtrar catálogo por título', placeholder='Escribe parte del nombre...',
+        key='cana_catalog_filter',
+    )
+    catalogue_songs = catalogue_candidates(songs, category, catalogue_query)
+    st.caption(f'{len(catalogue_songs)} de {len(candidates)} canciones en la categoría «{category}».')
+
+    if not catalogue_songs:
+        st.info('No hay cantos con ese título en esta categoría.')
+    else:
+        # En repertorios grandes la paginación evita una página excesiva.
+        page_size = 40
+        pages = (len(catalogue_songs) + page_size - 1) // page_size
+        page = (st.selectbox('Página del catálogo', range(1, pages + 1),
+                             key='cana_catalog_page') if pages > 1 else 1)
+        visible = catalogue_songs[(page-1)*page_size:page*page_size]
+        show_previews = st.toggle(
+            'Mostrar un fragmento de cada canción (opcional)', value=False,
+            key='cana_catalog_previews',
+            help='Carga las letras de esta página desde Notion. Desactívalo para una lista más rápida.',
+        )
+        previews, failures = ({}, 0)
+        if show_previews:
+            with st.spinner('Cargando pequeños fragmentos de letra desde Notion…'):
+                previews, failures = lyric_index(tuple(song['id'] for song in visible))
+        if failures:
+            st.caption(f'No fue posible obtener fragmentos de {failures} canciones.')
+
+        previous_letter = None
+        with st.container(key='cana_catalogue'):
+            for song in visible:
+                song_id = song['id']
+                title = api.song_title(song)
+                letter = api.normalized(title)[:1].upper() or '#'
+                if letter != previous_letter:
+                    st.markdown(f'<div class="cana-catalogue-letter">{html.escape(letter)}</div>',
+                                unsafe_allow_html=True)
+                    previous_letter = letter
+                st.button(title, key=f'cana_catalog_song_{song_id}',
+                          on_click=choose_song, args=(song_id,),
+                          use_container_width=True,
+                          help='Abrir canto con acordes y transposición')
+                _root, song_key = root_key(song)
+                tags = (get_multiselect(song, 'Categoria') or
+                        get_multiselect(song, 'Categoría'))
+                details = [song_key or 'Tono sin definir'] + tags
+                st.markdown('<div class="cana-catalogue-meta">' +
+                            html.escape(' · '.join(details)) + '</div>',
+                            unsafe_allow_html=True)
+                if show_previews:
+                    entry = previews.get(song_id, {})
+                    excerpt = search_preview(entry, '', max_chars=135)
+                    st.markdown('<div class="cana-catalogue-preview">' +
+                                html.escape(excerpt) + '</div>', unsafe_allow_html=True)
+    st.stop()
+
+# Vista musical normal: sin listas que empujen el canto hacia abajo.
 if not ids:
     st.info('Esta categoría todavía no tiene canciones públicas.')
     st.stop()

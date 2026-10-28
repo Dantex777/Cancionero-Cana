@@ -162,11 +162,15 @@ def render_autoscroll_song(song_html: str) -> str:
 
 
 def sidebar_helper_html(command: int) -> str:
-    """Controla el botón NATIVO de Streamlit; no fuerza el estado por CSS."""
+    """Intenta cerrar la barra sólo después de seleccionar canción o catálogo.
+
+    Streamlit expone el estado en aria-expanded, pero no tiene API pública
+    para cambiarlo desde Python. Se pulsa el botón nativo y se comprueba si
+    realmente cambió. No se cambia el estilo de la barra a la fuerza.
+    """
     markup = r"""
 <style>
 @media(max-width:820px){
-  /* Mantiene accesible el control nativo al bajar por la lista. */
   [data-testid="stSidebarCollapseButton"]{
     position:fixed!important;top:12px!important;right:12px!important;
     z-index:999999!important;opacity:1!important;visibility:visible!important;
@@ -180,43 +184,49 @@ def sidebar_helper_html(command: int) -> str:
 <div id="cana-close-command" data-command="__COMMAND__" hidden></div>
 <script>
 (()=>{
+  if(window.__canaMenuCleanup)window.__canaMenuCleanup();
   const marker=document.getElementById('cana-close-command');
   if(!marker)return;
-  const id=Number(marker.dataset.command||0);
+  const command=Number(marker.dataset.command||0);
+  let cancelled=false, timer=null;
   const sidebar=()=>document.querySelector('[data-testid="stSidebar"]');
   const expanded=()=>{
-    const s=sidebar();if(!s)return false;
-    if(s.dataset.collapsed==='true')return false;
-    if(s.dataset.collapsed==='false')return true;
-    if(s.getAttribute('aria-expanded')==='false')return false;
-    if(s.getAttribute('aria-expanded')==='true')return true;
-    return s.getBoundingClientRect().width>90;
+    const node=sidebar();
+    if(!node)return false;
+    const attr=node.getAttribute('aria-expanded');
+    if(attr==='true')return true;
+    if(attr==='false')return false;
+    return node.getBoundingClientRect().width>90;
   };
-  const nativeButton=()=>document.querySelector(
-    '[data-testid="stSidebarCollapseButton"] button'
-  );
-  const close=()=>{
-    if(!expanded())return true;
-    const b=nativeButton();
-    if(!b)return false;
-    b.click();return true;
+  const nativeButton=()=>{
+    const root=document.querySelector('[data-testid="stSidebarCollapseButton"]');
+    if(!root)return null;
+    return root.matches('button')?root:root.querySelector('button');
   };
-  // La misma vista puede actualizarse sin ejecutar de nuevo este script.
-  // Detectamos el nuevo comando desde el DOM y lo aplicamos una sola vez.
-  if(window.__canaMenuCleanup)window.__canaMenuCleanup();
-  let timer=0;
-  const apply=()=>{
-    if(!id||window.__canaLastCloseCommand===id)return;
-    window.__canaLastCloseCommand=id;
-    let attempt=0;
-    const retry=()=>{
-      attempt++;
-      if(!close()&&attempt<12)timer=setTimeout(retry,160);
-    };
-    timer=setTimeout(retry,120);
+  function checkClose(attempt=0){
+    if(cancelled||!expanded()||attempt>=5)return;
+    const button=nativeButton();
+    if(button){
+      button.click();
+      // IMPORTANTE: el clic no garantiza el cierre. Esperar la actualización
+      // de React antes de decidir si hay que volver a intentar.
+      timer=setTimeout(()=>{
+        if(!cancelled&&expanded())checkClose(attempt+1);
+      },550);
+    }else{
+      // El botón nativo puede montarse después del resto del visor.
+      timer=setTimeout(()=>checkClose(attempt+1),250);
+    }
+  }
+  if(command>0&&window.__canaLastCloseCommand!==command){
+    window.__canaLastCloseCommand=command;
+    // Espera a que termine el render del nuevo canto o catálogo.
+    timer=setTimeout(()=>checkClose(),350);
+  }
+  window.__canaMenuCleanup=()=>{
+    cancelled=true;
+    if(timer!==null)clearTimeout(timer);
   };
-  apply();
-  window.__canaMenuCleanup=()=>{if(timer)clearTimeout(timer);};
 })();
 </script>
 """

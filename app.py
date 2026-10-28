@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.4.3: Auto Scroll y menú móvil."""
+"""Cancionero Caná v0.4.4: Auto Scroll y menú móvil."""
 from pathlib import Path
 import html
 import os
@@ -547,7 +547,7 @@ if st.session_state['cana_catalog_view']:
                     excerpt = search_preview(entry, '', max_chars=135)
                     st.markdown('<div class="cana-catalogue-preview">' +
                                 html.escape(excerpt) + '</div>', unsafe_allow_html=True)
-    st.caption('Cancionero Caná · v0.4.3 · Auto Scroll')
+    st.caption('Cancionero Caná · v0.4.4 · Auto Scroll')
     st.stop()
 
 # Vista musical normal: sin listas que empujen el canto hacia abajo.
@@ -640,4 +640,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-st.caption('Cancionero Caná · v0.4.3 · Auto Scroll')
+st.caption('Cancionero Caná · v0.4.4 · Auto Scroll')

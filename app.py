@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.4.0: catálogo opcional en el menú lateral."""
+"""Cancionero Caná v0.4.1: Auto Scroll opcional y cierre del menú."""
 from pathlib import Path
 import html
 import os
@@ -9,6 +9,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from musica import CSS, music_from_blocks, render_song, pitch_class, PREFERRED, SHARPS, FLATS
+from cana_interactions import AUTO_SCROLL_HTML, sidebar_helper_html
 
 st.set_page_config(page_title='Cancionero Caná', page_icon='🎶', layout='wide',
                    initial_sidebar_state='collapsed')
@@ -321,16 +322,20 @@ if 'cana_search_query' not in st.session_state:
     st.session_state['cana_search_query'] = ''
 if 'cana_catalog_view' not in st.session_state:
     st.session_state['cana_catalog_view'] = False
+if 'cana_close_sidebar_token' not in st.session_state:
+    st.session_state['cana_close_sidebar_token'] = 0
 
 
 def show_catalogue():
     """Abre una lista opcional, sin modificar la canción elegida."""
     st.session_state['cana_catalog_view'] = True
+    st.session_state['cana_close_sidebar_token'] += 1
 
 
 def hide_catalogue():
     """Regresa a la canción que estaba abierta."""
     st.session_state['cana_catalog_view'] = False
+    st.session_state['cana_close_sidebar_token'] += 1
 
 
 def choose_song(song_id: str):
@@ -339,9 +344,11 @@ def choose_song(song_id: str):
     st.session_state['cana_catalog_view'] = False
     st.session_state['cana_search_query'] = ''
     st.session_state['cana_picker_revision'] += 1
+    st.session_state['cana_close_sidebar_token'] += 1
 
 
 with st.sidebar:
+    st.html(sidebar_helper_html(st.session_state['cana_close_sidebar_token']), unsafe_allow_javascript=True)
     st.header('Canciones')
 
     # 1. Categoría
@@ -603,6 +610,7 @@ except (SystemExit, ValueError, KeyError, OSError) as error:
 if not music:
     st.warning('La canción no contiene texto legible todavía.')
 else:
+    st.html(AUTO_SCROLL_HTML, unsafe_allow_javascript=True)
     st.markdown(CSS, unsafe_allow_html=True)
     st.markdown(render_song(music, st.session_state[step_key], show_chords, font_size, notation_code, prevent_overlap, font_code),
                 unsafe_allow_html=True)

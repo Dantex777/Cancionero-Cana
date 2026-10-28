@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.4.3 beta: Scroll integrado y versión visible."""
+"""Cancionero Caná v0.4.4 beta: Scroll integrado y versión visible."""
 from pathlib import Path
 import html
 import os
@@ -547,7 +547,7 @@ if st.session_state['cana_catalog_view']:
                     excerpt = search_preview(entry, '', max_chars=135)
                     st.markdown('<div class="cana-catalogue-preview">' +
                                 html.escape(excerpt) + '</div>', unsafe_allow_html=True)
-    st.caption('Versión de pruebas: v0.4.3 beta · Auto Scroll integrado')
+    st.caption('Versión de pruebas: v0.4.4 beta · Auto Scroll integrado')
     st.stop()
 
 # Vista musical normal: sin listas que empujen el canto hacia abajo.
@@ -640,4 +640,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-st.caption('Versión de pruebas: v0.4.3 beta · Auto Scroll integrado · rama feature/autoscroll-menu-v041')
+st.caption('Versión de pruebas: v0.4.4 beta · Auto Scroll integrado · rama feature/autoscroll-menu-v041')

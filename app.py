@@ -348,7 +348,6 @@ def choose_song(song_id: str):
 
 
 with st.sidebar:
-    st.html(sidebar_helper_html(st.session_state['cana_close_sidebar_token']), unsafe_allow_javascript=True)
     st.header('Canciones')
 
     # 1. Categoría
@@ -479,6 +478,10 @@ with st.sidebar:
         content_from_notion.clear()
         lyric_index.clear()
         st.rerun()
+
+# Mantener el control del menú en la zona principal evita que se desmonte
+# cuando el usuario contrae la barra lateral en un teléfono.
+st.html(sidebar_helper_html(st.session_state['cana_close_sidebar_token']), unsafe_allow_javascript=True)
 
 # Vista alternativa opcional: biblioteca de títulos, sin cambiar de aplicación.
 # No consultamos las letras por defecto: Notion sólo se carga si el usuario

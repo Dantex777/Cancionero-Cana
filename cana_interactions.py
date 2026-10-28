@@ -1,4 +1,4 @@
-"""Interacciones del Cancionero Caná v0.4.2 beta.
+"""Interacciones del Cancionero Caná v0.4.3 beta.
 
 El visor autocontenido evita buscar la letra en otros elementos de Streamlit.
 El HTML musical es generado por musica.render_song, que escapa el texto de Notion.
@@ -68,7 +68,7 @@ AUTO_SCROLL_WRAPPER = r"""
   const status=root.querySelector('#cana-scroll-status');
   if(!viewer||!select||!play||!reset)return;
   // Escala lenta en píxeles por segundo: cada paso conserva fracciones.
-  const rates=[0,5,7,9,12,15,19,24];
+  const rates=[0,3,4,6,8,10,13,16];
   let level=0,playing=false,frame=0,lastTime=0,exactPosition=0;
   const unsub=[];
   const on=(node,name,fn,opts)=>{

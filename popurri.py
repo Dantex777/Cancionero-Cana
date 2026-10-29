@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.5.0 beta — Popurrís (solo estado local, sin escrituras a Notion).
+"""Cancionero Caná v0.5.0 beta.2 — Popurrís (solo estado local, sin escrituras a Notion).
 
 El motor musical y el Auto Scroll se reutilizan sin modificarlos.
 La persistencia compartida en Notion se activará cuando exista otra base con
@@ -92,7 +92,7 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
                 item["steps"] += change
                 break
 
-    st.markdown('<div class="cana-song-title">Modo Popurrí · v0.5.0 beta</div>',
+    st.markdown('<div class="cana-song-title">Modo Popurrí · v0.5.0 beta.2</div>',
                 unsafe_allow_html=True)
     st.caption("Crea un repertorio continuo. Los cambios aquí no modifican Notion ni las canciones originales.")
 

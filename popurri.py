@@ -105,8 +105,7 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
     st.button("＋ Añadir canto", on_click=add_song,
               disabled=not picker or len(state["cana_pop_items"]) >= MAX_SONGS)
     if not state["cana_pop_items"]:
-        st.info("Elige una canción para comenzar el popurrí.")
-        return
+        st.info("Elige un canto o carga un popurrí guardado en Notion.")
 
     # Streamlit ejecuta los callbacks antes de reconstruir los widgets.
     st.radio(
@@ -201,7 +200,8 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
         "Guardar copia del popurrí (.json)",
         json.dumps(saved, ensure_ascii=False, indent=2),
         file_name="popurri-cana.json", mime="application/json",
-        help="Copia temporal mientras habilitamos la segunda base de datos de Notion."
+        help="Copia local para compartir o recuperar el popurrí.",
+        disabled=not state["cana_pop_items"]
     )
 
     def import_saved():
@@ -298,7 +298,7 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
                 password = st.text_input("Clave para guardar (administración)",
                                          type="password",key="cana_pop_admin_password")
                 if st.button("Guardar nuevo popurrí en Notion",
-                             disabled=not password):
+                             disabled=not password or not state["cana_pop_items"]):
                     if not hmac.compare_digest(password,admin_secret):
                         st.error("La clave de administración es incorrecta.")
                     else:
@@ -335,6 +335,8 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
             +render_song(music,steps,show_chords,font_size,notation_code,
                          prevent_overlap,font_code)
         )
+    if not parts:
+        return
     st.markdown(CSS, unsafe_allow_html=True)
     continuous='<div class="cana-song cana-popurri-body" style="--fz:{}px">'.format(font_size)+''.join(parts)+'</div>'
     st.html(render_autoscroll_song(continuous),unsafe_allow_javascript=True)

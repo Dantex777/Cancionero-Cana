@@ -36,7 +36,7 @@ AUTO_SCROLL_WRAPPER = r"""
   #cana-scroll-root .cana-scroll-toolbar label{font-size:.78rem;}
   #cana-scroll-root .cana-scroll-toolbar select{max-width:148px;font-size:.78rem;}
   #cana-scroll-root .cana-song.cana-auto-active{
-    height:62dvh;max-height:62dvh;
+    height:82dvh;max-height:82dvh;
   }
 }
 </style>

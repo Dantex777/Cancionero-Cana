@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.4.4: Auto Scroll y menú móvil."""
+"""Cancionero Caná v0.5.0: Popurrí, Auto Scroll y transposición."""
 from pathlib import Path
 import html
 import os
@@ -246,6 +246,68 @@ st.markdown("""
 .cana-catalogue-letter {font-size:1.12rem; font-weight:760; color:#b9adfa; margin:1.3rem 0 .6rem;}
 
 
+
+/* Barra lateral legible tanto en el tema claro como en el oscuro.
+   Se usa fondo oscuro explícito con texto claro para evitar mezclas
+   de colores del tema del navegador. No afecta el visor musical. */
+[data-testid="stSidebar"] {
+    background:#18191f !important;
+    color:#f3f4f8 !important;
+}
+[data-testid="stSidebar"] :is(
+    label, p, h1, h2, h3, span[data-testid="stMarkdownContainer"],
+    [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] p,
+    [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p
+) { color:#f3f4f8 !important; }
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] [data-baseweb="input"] > div,
+[data-testid="stSidebar"] input {
+    background-color:#242632 !important;
+    color:#f9f9ff !important;
+    -webkit-text-fill-color:#f9f9ff !important;
+    border-color:#565970 !important;
+}
+[data-testid="stSidebar"] input::placeholder {
+    color:#bfc1d1 !important;
+    -webkit-text-fill-color:#bfc1d1 !important;
+    opacity:1 !important;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] svg,
+[data-testid="stSidebar"] [data-baseweb="input"] svg {
+    fill:#f5f5fa !important;
+}
+[data-testid="stSidebar"] [data-testid="stSlider"] p {
+    color:#f3f4f8 !important;
+}
+
+/* Botones oscuros de navegación/actualización, incluso si el tema general es claro. */
+[data-testid="stSidebar"] .st-key-cana_catalog_open_sidebar button,
+[data-testid="stSidebar"] .st-key-cana_catalog_back_sidebar button,
+[data-testid="stSidebar"] .st-key-cana_pop_open_sidebar button,
+[data-testid="stSidebar"] .st-key-cana_pop_close_sidebar button,
+[data-testid="stSidebar"] .st-key-cana_refresh_songs button {
+    background-color:#252735 !important;
+    border:1px solid #666a80 !important;
+    color:#f7f7ff !important;
+}
+[data-testid="stSidebar"] .st-key-cana_catalog_open_sidebar button :is(p,span),
+[data-testid="stSidebar"] .st-key-cana_catalog_back_sidebar button :is(p,span),
+[data-testid="stSidebar"] .st-key-cana_pop_open_sidebar button :is(p,span),
+[data-testid="stSidebar"] .st-key-cana_pop_close_sidebar button :is(p,span),
+[data-testid="stSidebar"] .st-key-cana_refresh_songs button :is(p,span){
+    color:#f7f7ff !important;
+    -webkit-text-fill-color:#f7f7ff !important;
+    font-weight:600;
+}
+[data-testid="stSidebar"] .st-key-cana_catalog_open_sidebar button:hover,
+[data-testid="stSidebar"] .st-key-cana_catalog_back_sidebar button:hover,
+[data-testid="stSidebar"] .st-key-cana_pop_open_sidebar button:hover,
+[data-testid="stSidebar"] .st-key-cana_pop_close_sidebar button:hover,
+[data-testid="stSidebar"] .st-key-cana_refresh_songs button:hover{
+    background-color:#36394c !important;
+    border-color:#a99dcb !important;
+}
+
 /* La barra de tono se mantiene compacta en teléfonos. */
 .st-key-cana_toneline [data-testid='stHorizontalBlock'] {
     flex-wrap:nowrap !important;
@@ -284,7 +346,7 @@ st.markdown("""
 # Esta imagen se guarda junto a app.py en GitHub; no depende de Notion ni de URLs temporales.
 PORTADA = Path(__file__).with_name('portada_cantoral_cana.webp')
 # En el catálogo dejamos espacio para explorar la lista sin desplazarla por la portada.
-if not st.session_state.get('cana_catalog_view', False):
+if not st.session_state.get('cana_catalog_view', False) and not st.session_state.get('cana_popurri_view', False):
     if PORTADA.is_file():
         with st.container(key='cana_banner'):
             st.image(str(PORTADA), use_container_width=True)
@@ -315,7 +377,8 @@ if not songs:
     st.stop()
 
 if 'cana_active_song' not in st.session_state:
-    st.session_state['cana_active_song'] = songs[0]['id']
+    # Visor limpio al comenzar: el músico elige desde el menú lateral.
+    st.session_state['cana_active_song'] = None
 if 'cana_picker_revision' not in st.session_state:
     st.session_state['cana_picker_revision'] = 0
 if 'cana_search_query' not in st.session_state:
@@ -324,11 +387,14 @@ if 'cana_catalog_view' not in st.session_state:
     st.session_state['cana_catalog_view'] = False
 if 'cana_close_sidebar_token' not in st.session_state:
     st.session_state['cana_close_sidebar_token'] = 0
+if 'cana_popurri_view' not in st.session_state:
+    st.session_state['cana_popurri_view'] = False
 
 
 def show_catalogue():
     """Abre una lista opcional, sin modificar la canción elegida."""
     st.session_state['cana_catalog_view'] = True
+    st.session_state['cana_popurri_view'] = False
     st.session_state['cana_close_sidebar_token'] += 1
 
 
@@ -342,8 +408,20 @@ def choose_song(song_id: str):
     """Cambia el canto desde resultados, y deja lista una nueva búsqueda."""
     st.session_state['cana_active_song'] = song_id
     st.session_state['cana_catalog_view'] = False
+    st.session_state['cana_popurri_view'] = False
     st.session_state['cana_search_query'] = ''
     st.session_state['cana_picker_revision'] += 1
+    st.session_state['cana_close_sidebar_token'] += 1
+
+
+def show_popurri():
+    st.session_state['cana_popurri_view'] = True
+    st.session_state['cana_catalog_view'] = False
+    st.session_state['cana_close_sidebar_token'] += 1
+
+
+def hide_popurri():
+    st.session_state['cana_popurri_view'] = False
     st.session_state['cana_close_sidebar_token'] += 1
 
 
@@ -364,8 +442,8 @@ with st.sidebar:
     ]
     by_id = {song['id']: song for song in candidates}
     ids = list(by_id)
-    if st.session_state['cana_active_song'] not in by_id and ids:
-        st.session_state['cana_active_song'] = ids[0]
+    if st.session_state['cana_active_song'] not in by_id:
+        st.session_state['cana_active_song'] = None
 
     # 2. Selector de canciones, siempre disponible y con búsqueda por título.
     picker_key = f'cana_picker_{st.session_state["cana_picker_revision"]}'
@@ -442,6 +520,12 @@ with st.sidebar:
         st.button('📚 Ver catálogo completo', key='cana_catalog_open_sidebar',
                   use_container_width=True, on_click=show_catalogue)
 
+    if st.session_state['cana_popurri_view']:
+        st.button('← Volver al visor musical', key='cana_pop_close_sidebar',
+                  on_click=hide_popurri, use_container_width=True)
+    else:
+        st.button('🎼 Crear Popurrí', key='cana_pop_open_sidebar',
+                  on_click=show_popurri, use_container_width=True)
     st.divider()
     # Las preferencias quedan después del buscador, como solicitó el usuario.
     st.subheader('Visualización')
@@ -473,7 +557,7 @@ with st.sidebar:
         'Bemoles (b)': 'bemoles',
     }[notation]
     st.divider()
-    if st.button('🔄 Actualizar canciones', use_container_width=True):
+    if st.button('🔄 Actualizar canciones', key='cana_refresh_songs', use_container_width=True):
         songs_from_notion.clear()
         content_from_notion.clear()
         lyric_index.clear()
@@ -482,6 +566,16 @@ with st.sidebar:
 # Mantener el control del menú en la zona principal evita que se desmonte
 # cuando el usuario contrae la barra lateral en un teléfono.
 st.html(sidebar_helper_html(st.session_state['cana_close_sidebar_token']), unsafe_allow_javascript=True)
+
+# Vista experimental de popurrí: se monta aparte de canción y catálogo.
+if st.session_state['cana_popurri_view']:
+    from popurri import show_popurri as render_popurri
+    st.button('← Volver a la canción', key='cana_pop_close_main',
+              on_click=hide_popurri)
+    render_popurri(st, songs, api, root_key, content_from_notion,
+                   show_chords, font_size, notation_code, prevent_overlap, font_code)
+    st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí')
+    st.stop()
 
 # Vista alternativa opcional: biblioteca de títulos, sin cambiar de aplicación.
 # No consultamos las letras por defecto: Notion sólo se carga si el usuario
@@ -547,12 +641,16 @@ if st.session_state['cana_catalog_view']:
                     excerpt = search_preview(entry, '', max_chars=135)
                     st.markdown('<div class="cana-catalogue-preview">' +
                                 html.escape(excerpt) + '</div>', unsafe_allow_html=True)
-    st.caption('Cancionero Caná · v0.4.4 · Auto Scroll')
+    st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí y Auto Scroll')
     st.stop()
 
 # Vista musical normal: sin listas que empujen el canto hacia abajo.
 if not ids:
     st.info('Esta categoría todavía no tiene canciones públicas.')
+    st.stop()
+if not st.session_state['cana_active_song']:
+    st.info('Elige tu canción en el menú lateral para comenzar.')
+    st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí')
     st.stop()
 current = by_id[st.session_state['cana_active_song']]
 title = api.song_title(current)
@@ -629,9 +727,20 @@ else:
 st.markdown("""
 <style>
 .cana-footer {border-top:1px solid #393945; margin:2.0rem 0 0; padding:1.35rem .15rem 2rem; font-size:.90rem;}
-.cana-footer-note {color:#c9a7f5; font-style:italic; line-height:1.6; margin-bottom:.80rem;}
-.cana-footer-help {color:#eceaf1; line-height:1.6;}
-.cana-footer a, .cana-footer a:visited {color:#d3c0fb; text-decoration:underline; text-underline-offset:2px;}
+.cana-footer-note {
+    color:color-mix(in srgb, var(--text-color, #21222b) 35%, #b18be6);
+    font-style:italic; line-height:1.6; margin-bottom:.80rem;
+    font-weight:550;
+}
+.cana-footer-help {
+    color:var(--text-color, inherit) !important;
+    line-height:1.6; font-weight:550;
+}
+.cana-footer a, .cana-footer a:visited {
+    color:color-mix(in srgb, var(--text-color, #21222b) 65%, #9871d5);
+    font-weight:650;
+    text-decoration:underline; text-underline-offset:2px;
+}
 </style>
 <div class="cana-footer">
   <div class="cana-footer-note">Cantoral en construcción XD (Si llegaste hasta aquí, ten paciencia, pronto completaremos el cancionero 😉)</div>
@@ -640,4 +749,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-st.caption('Cancionero Caná · v0.4.4 · Auto Scroll')
+st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí y Auto Scroll')

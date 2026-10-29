@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.5.0: Popurrí, Auto Scroll y transposición."""
+"""Cancionero Caná v0.5.1: Popurrí, Auto Scroll y transposición."""
 from pathlib import Path
 import html
 import os
@@ -574,7 +574,7 @@ if st.session_state['cana_popurri_view']:
               on_click=hide_popurri)
     render_popurri(st, songs, api, root_key, content_from_notion,
                    show_chords, font_size, notation_code, prevent_overlap, font_code)
-    st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí')
+    st.caption('Cancionero Caná · v0.5.1 · Modo Popurrí')
     st.stop()
 
 # Vista alternativa opcional: biblioteca de títulos, sin cambiar de aplicación.
@@ -641,7 +641,7 @@ if st.session_state['cana_catalog_view']:
                     excerpt = search_preview(entry, '', max_chars=135)
                     st.markdown('<div class="cana-catalogue-preview">' +
                                 html.escape(excerpt) + '</div>', unsafe_allow_html=True)
-    st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí y Auto Scroll')
+    st.caption('Cancionero Caná · v0.5.1 · Modo Popurrí y Auto Scroll')
     st.stop()
 
 # Vista musical normal: sin listas que empujen el canto hacia abajo.
@@ -650,7 +650,7 @@ if not ids:
     st.stop()
 if not st.session_state['cana_active_song']:
     st.info('Elige tu canción en el menú lateral para comenzar.')
-    st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí')
+    st.caption('Cancionero Caná · v0.5.1 · Modo Popurrí')
     st.stop()
 current = by_id[st.session_state['cana_active_song']]
 title = api.song_title(current)
@@ -749,4 +749,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí y Auto Scroll')
+st.caption('Cancionero Caná · v0.5.1 · Modo Popurrí y Auto Scroll')

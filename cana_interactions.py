@@ -162,11 +162,11 @@ def render_autoscroll_song(song_html: str) -> str:
 
 
 def sidebar_helper_html(command: int) -> str:
-    """Intenta cerrar la barra sólo después de seleccionar canción o catálogo.
+    """Cierra la barra al seleccionar canción, abrir catálogo o Popurrí.
 
-    Streamlit expone el estado en aria-expanded, pero no tiene API pública
-    para cambiarlo desde Python. Se pulsa el botón nativo y se comprueba si
-    realmente cambió. No se cambia el estilo de la barra a la fuerza.
+    Compatible con Streamlit 1.66+ mediante data-collapsed. Usa el
+    botón nativo y verifica que el menú se cierre; no fuerza estilos
+    para fingir que está cerrado.
     """
     markup = r"""
 <style>
@@ -190,13 +190,22 @@ def sidebar_helper_html(command: int) -> str:
   const command=Number(marker.dataset.command||0);
   let cancelled=false, timer=null;
   const sidebar=()=>document.querySelector('[data-testid="stSidebar"]');
+  // Streamlit 1.66+: el panel informa su estado con data-collapsed,
+  // no con aria-expanded. Medir el ancho era engañoso en móvil porque
+  // la barra conserva su ancho aunque quede escondida fuera de pantalla.
   const expanded=()=>{
     const node=sidebar();
-    if(!node)return false;
-    const attr=node.getAttribute('aria-expanded');
-    if(attr==='true')return true;
-    if(attr==='false')return false;
-    return node.getBoundingClientRect().width>90;
+    if(!node)return null; // aún no se montó: reintentar
+    const collapsed=node.getAttribute('data-collapsed');
+    if(collapsed==='true')return false;
+    if(collapsed==='false')return true;
+    // Compatibilidad con versiones antiguas: consultar el botón nativo,
+    // pero nunca asumir que el ancho del panel significa "abierto".
+    const control=nativeButton();
+    const aria=control?.getAttribute('aria-expanded');
+    if(aria==='true')return true;
+    if(aria==='false')return false;
+    return null;
   };
   const nativeButton=()=>{
     const root=document.querySelector('[data-testid="stSidebarCollapseButton"]');
@@ -204,7 +213,13 @@ def sidebar_helper_html(command: int) -> str:
     return root.matches('button')?root:root.querySelector('button');
   };
   function checkClose(attempt=0){
-    if(cancelled||!expanded()||attempt>=5)return;
+    if(cancelled||attempt>=9)return;
+    const status=expanded();
+    if(status===false)return; // confirmado: ya está cerrado
+    if(status===null){
+      timer=setTimeout(()=>checkClose(attempt+1),200);
+      return;
+    }
     const button=nativeButton();
     if(button){
       button.click();

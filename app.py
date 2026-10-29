@@ -246,6 +246,40 @@ st.markdown("""
 .cana-catalogue-letter {font-size:1.12rem; font-weight:760; color:#b9adfa; margin:1.3rem 0 .6rem;}
 
 
+
+/* Barra lateral legible tanto en el tema claro como en el oscuro.
+   Se usa fondo oscuro explícito con texto claro para evitar mezclas
+   de colores del tema del navegador. No afecta el visor musical. */
+[data-testid="stSidebar"] {
+    background:#18191f !important;
+    color:#f3f4f8 !important;
+}
+[data-testid="stSidebar"] :is(
+    label, p, h1, h2, h3, span[data-testid="stMarkdownContainer"],
+    [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] p,
+    [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p
+) { color:#f3f4f8 !important; }
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] [data-baseweb="input"] > div,
+[data-testid="stSidebar"] input {
+    background-color:#242632 !important;
+    color:#f9f9ff !important;
+    -webkit-text-fill-color:#f9f9ff !important;
+    border-color:#565970 !important;
+}
+[data-testid="stSidebar"] input::placeholder {
+    color:#bfc1d1 !important;
+    -webkit-text-fill-color:#bfc1d1 !important;
+    opacity:1 !important;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] svg,
+[data-testid="stSidebar"] [data-baseweb="input"] svg {
+    fill:#f5f5fa !important;
+}
+[data-testid="stSidebar"] [data-testid="stSlider"] p {
+    color:#f3f4f8 !important;
+}
+
 /* La barra de tono se mantiene compacta en teléfonos. */
 .st-key-cana_toneline [data-testid='stHorizontalBlock'] {
     flex-wrap:nowrap !important;
@@ -315,7 +349,8 @@ if not songs:
     st.stop()
 
 if 'cana_active_song' not in st.session_state:
-    st.session_state['cana_active_song'] = songs[0]['id']
+    # Visor limpio al comenzar: el músico elige desde el menú lateral.
+    st.session_state['cana_active_song'] = None
 if 'cana_picker_revision' not in st.session_state:
     st.session_state['cana_picker_revision'] = 0
 if 'cana_search_query' not in st.session_state:
@@ -379,8 +414,8 @@ with st.sidebar:
     ]
     by_id = {song['id']: song for song in candidates}
     ids = list(by_id)
-    if st.session_state['cana_active_song'] not in by_id and ids:
-        st.session_state['cana_active_song'] = ids[0]
+    if st.session_state['cana_active_song'] not in by_id:
+        st.session_state['cana_active_song'] = None
 
     # 2. Selector de canciones, siempre disponible y con búsqueda por título.
     picker_key = f'cana_picker_{st.session_state["cana_picker_revision"]}'
@@ -584,6 +619,10 @@ if st.session_state['cana_catalog_view']:
 # Vista musical normal: sin listas que empujen el canto hacia abajo.
 if not ids:
     st.info('Esta categoría todavía no tiene canciones públicas.')
+    st.stop()
+if not st.session_state['cana_active_song']:
+    st.info('Elige tu canción en el menú lateral para comenzar.')
+    st.caption('Cancionero Caná · v0.5.0 beta · Modo Popurrí')
     st.stop()
 current = by_id[st.session_state['cana_active_song']]
 title = api.song_title(current)

@@ -1,8 +1,8 @@
-# Popurrís Caná · v0.5.0 beta
+# Popurrís Caná · v0.5.0
 
-Esta rama es experimental. No modifica la base existente **Canciones Caná**.
+El módulo Popurrí no modifica la base existente **Canciones Caná**.
 
-## Prototipo ya disponible
+## Funcionalidades disponibles
 - Menú lateral **Crear Popurrí**.
 - Añadir y repetir cantos, reordenar y quitar.
 - Tres modos: **Originales**, **Unificar tono** y **Personalizado**.
@@ -42,7 +42,7 @@ Si no configuras estas credenciales, el Modo Popurrí funciona sin Notion y perm
 4. Pulsa **+1** sólo en una canción: ahora aparece **Personalizado**, manteniendo sin cambios la otra.
 5. Reordena y repite una canción; comprueba títulos, líneas divisorias y Auto Scroll.
 6. Si configuraste Notion, guarda el popurrí, recarga el navegador, actualiza la lista y vuelve a abrirlo.
-7. Verifica el resultado en iPhone y Android. No fusiones con `main` hasta aprobar el funcionamiento.
+7. Verifica el resultado en iPhone y Android después de cada actualización.
 
 ## Restricciones
 La transposición cambia las notas, no los modos. **Unificar tono** no transforma automáticamente una canción mayor en menor o viceversa. Canciones con modo incompatible permanecen en el tono original y se advierte al músico.

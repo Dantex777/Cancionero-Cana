@@ -1,0 +1,19 @@
+name: Test popurri beta
+on:
+  push:
+    branches: [feature/popurri-v050]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m py_compile app.py musica.py conexion_notion.py cana_interactions.py popurri.py popurri_notion.py
+      - run: python -m unittest discover -s tests -v

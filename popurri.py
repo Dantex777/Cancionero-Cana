@@ -97,11 +97,46 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
     st.caption("Crea un repertorio continuo. Los cambios aquí no modifican Notion ni las canciones originales.")
 
     st.text_input("Nombre del popurrí", key="cana_pop_title", max_chars=100)
+
+    # Filtrar solo el selector de nuevos cantos; no se eliminan los ya elegidos.
+    categories = sorted({
+        tag.get("name", "")
+        for song in songs
+        for field in ("Categoria", "Categoría")
+        for tag in song.get("properties", {}).get(field, {}).get("multi_select", [])
+        if tag.get("name")
+    })
+
+    def change_pop_category():
+        # Permite volver a buscar desde cero al cambiar la categoría.
+        state["cana_pop_new_song"] = None
+
+    category = st.selectbox(
+        "Filtrar canciones por categoría",
+        ["Todas"] + categories, key="cana_pop_category",
+        on_change=change_pop_category,
+    )
+
+    def in_category(song):
+        if category == "Todas":
+            return True
+        return any(
+            tag.get("name") == category
+            for field in ("Categoria", "Categoría")
+            for tag in song.get("properties", {}).get(field, {}).get("multi_select", [])
+        )
+
+    filtered_ids = [
+        song_id for song_id, song in song_by_id.items()
+        if in_category(song)
+    ]
     picker = st.selectbox(
-        "Añadir canción", options=list(song_by_id),
+        "Añadir canción", options=filtered_ids,
         format_func=lambda song_id: api.song_title(song_by_id[song_id]),
         index=None, placeholder="Busca por título…", key="cana_pop_new_song",
     )
+    if not filtered_ids:
+        st.caption("No hay canciones publicadas en esta categoría.")
     st.button("＋ Añadir canto", on_click=add_song,
               disabled=not picker or len(state["cana_pop_items"]) >= MAX_SONGS)
     if not state["cana_pop_items"]:
@@ -145,43 +180,61 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
     .cana-pop-header{font-weight:800;font-size:1.15em;color:#f4c58d;
         padding:20px 2px 4px;border-top:1px solid #716f94}
     .cana-pop-subtitle{color:#b4b1c4;font-size:.78em;margin-bottom:10px}
+    /* Mantener cinco controles compactos en una sola fila del celular. */
+    .st-key-cana_pop_builder_list [data-testid="stHorizontalBlock"]{
+        flex-wrap:nowrap!important;
+        gap:.25rem!important;
+        align-items:center!important;
+    }
+    .st-key-cana_pop_builder_list [data-testid="stColumn"]{
+        min-width:0!important;width:auto!important;
+    }
+    .st-key-cana_pop_builder_list [data-testid="stButton"] button{
+        width:100%!important;
+        min-height:38px!important;
+        height:38px!important;
+        padding:.15rem .2rem!important;
+        font-size:.93rem!important;
+        white-space:nowrap!important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    for position, item in enumerate(state["cana_pop_items"]):
-        song = song_by_id[item["song_id"]]
-        steps = effective_steps(item, song, mode, target, root_key)
-        _root, original = root_key(song)
-        now = target_name(song, steps, root_key, notation_code)
-        name = api.song_title(song)
-        st.markdown(
-            f'<div class="cana-pop-item">{position+1}. {html.escape(name)}</div>'
-            f'<div class="cana-pop-key">Original: {html.escape(original or "—")} '
-            f'· Actual: {html.escape(now)} · {steps:+d} semitonos</div>',
-            unsafe_allow_html=True
-        )
-        a,b,c,d,e = st.columns([1,1,1,1,1])
-        with a:
-            st.button("−1", key="pop_down_"+item["uid"],
-                      on_click=manual_shift,args=(item["uid"], -1),
-                      use_container_width=True)
-        with b:
-            st.button("+1", key="pop_up_"+item["uid"],
-                      on_click=manual_shift,args=(item["uid"], 1),
-                      use_container_width=True)
-        with c:
-            st.button("↑", key="pop_move_up_"+item["uid"],disabled=position==0,
-                      on_click=move,args=(item["uid"], -1),
-                      use_container_width=True)
-        with d:
-            st.button("↓", key="pop_move_down_"+item["uid"],
-                      disabled=position==len(state["cana_pop_items"])-1,
-                      on_click=move,args=(item["uid"], 1),
-                      use_container_width=True)
-        with e:
-            st.button("✕", key="pop_remove_"+item["uid"],
-                      on_click=remove,args=(item["uid"],),
-                      use_container_width=True)
+    with st.container(key="cana_pop_builder_list"):
+        for position, item in enumerate(state["cana_pop_items"]):
+            song = song_by_id[item["song_id"]]
+            steps = effective_steps(item, song, mode, target, root_key)
+            _root, original = root_key(song)
+            now = target_name(song, steps, root_key, notation_code)
+            name = api.song_title(song)
+            st.markdown(
+                f'<div class="cana-pop-item">{position+1}. {html.escape(name)}</div>'
+                f'<div class="cana-pop-key">Original: {html.escape(original or "—")} '
+                f'· Actual: {html.escape(now)} · {steps:+d} semitonos</div>',
+                unsafe_allow_html=True
+            )
+            a,b,c,d,e = st.columns([1,1,1,1,1])
+            with a:
+                st.button("−1", key="pop_down_"+item["uid"],
+                          on_click=manual_shift,args=(item["uid"], -1),
+                          use_container_width=True)
+            with b:
+                st.button("+1", key="pop_up_"+item["uid"],
+                          on_click=manual_shift,args=(item["uid"], 1),
+                          use_container_width=True)
+            with c:
+                st.button("↑", key="pop_move_up_"+item["uid"],disabled=position==0,
+                          on_click=move,args=(item["uid"], -1),
+                          use_container_width=True)
+            with d:
+                st.button("↓", key="pop_move_down_"+item["uid"],
+                          disabled=position==len(state["cana_pop_items"])-1,
+                          on_click=move,args=(item["uid"], 1),
+                          use_container_width=True)
+            with e:
+                st.button("✕", key="pop_remove_"+item["uid"],
+                          on_click=remove,args=(item["uid"],),
+                          use_container_width=True)
 
     # Compartir manualmente con archivo mientras configuramos la base de Notion.
     # No escribir desde una app pública con el token de lectura actual.
@@ -316,9 +369,8 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
                 st.caption("El guardado requiere configurar POPURRIS_ADMIN_PASSWORD.")
 
     st.divider()
-    st.markdown('<div class="cana-song-title">Visor continuo</div>',
-                unsafe_allow_html=True)
-    st.caption("El Auto Scroll se aplica al popurrí completo, sin parar entre canciones.")
+    # Dejamos el lector inmediatamente junto a los controles Auto Scroll:
+    # ningún título adicional reduce la zona de lectura en el celular.
     parts=[]
     for i,item in enumerate(state["cana_pop_items"]):
         page=song_by_id[item["song_id"]]

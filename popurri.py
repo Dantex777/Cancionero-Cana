@@ -242,6 +242,78 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
         if state.get("cana_pop_import_error"):
             st.error(state["cana_pop_import_error"])
 
+    # Guardado compartido en base separada; nunca se escribe en Canciones Caná.
+    from popurri_notion import (
+        configured as notion_ready, setting as notion_setting,
+        list_saved as notion_list, create_saved as notion_save,
+        PopurriNotionError,
+    )
+    import hmac
+
+    with st.expander("Popurrís guardados en Notion"):
+        st.caption("Los músicos pueden cargar repertorios; guardar nuevos "
+                   "requiere clave de administración y permisos en una base aparte.")
+        if not notion_ready(st):
+            st.info("Para activar este guardado, crea la base «Popurrís Caná» "
+                    "y configura su conexión en Streamlit Secrets.")
+        else:
+            if st.button("Actualizar lista de popurrís", key="cana_pop_refresh_notion"):
+                try:
+                    state["cana_pop_notion_rows"] = notion_list(st, set(song_by_id))
+                    state["cana_pop_notion_error"] = ""
+                except PopurriNotionError as err:
+                    state["cana_pop_notion_error"] = str(err)
+
+            if state.get("cana_pop_notion_error"):
+                st.error(state["cana_pop_notion_error"])
+
+            rows = state.get("cana_pop_notion_rows", [])
+            selected = st.selectbox(
+                "Repertorio guardado", rows, index=None,
+                format_func=lambda row: row["name"],
+                placeholder="Selecciona un popurrí guardado…",
+                key="cana_pop_selected_notion",
+            )
+
+            def load_notion_popurri():
+                chosen = state.get("cana_pop_selected_notion")
+                if not chosen:
+                    return
+                data = chosen["data"]
+                state["cana_pop_items"] = [
+                    {"song_id": row["song_id"], "steps": int(row["steps"]),
+                     "uid": uuid.uuid4().hex}
+                    for row in data["songs"]
+                ]
+                state["cana_pop_mode"] = "Personalizado"
+                state["cana_pop_title"] = data["name"]
+                state["cana_pop_target"] = (
+                    data["target"] if data["target"] in KEYS else "Bm")
+
+            st.button("Abrir repertorio", on_click=load_notion_popurri,
+                      disabled=not selected)
+
+            admin_secret = notion_setting(st, "POPURRIS_ADMIN_PASSWORD")
+            if admin_secret:
+                password = st.text_input("Clave para guardar (administración)",
+                                         type="password",key="cana_pop_admin_password")
+                if st.button("Guardar nuevo popurrí en Notion",
+                             disabled=not password):
+                    if not hmac.compare_digest(password,admin_secret):
+                        st.error("La clave de administración es incorrecta.")
+                    else:
+                        try:
+                            link = notion_save(st, saved, set(song_by_id))
+                            st.success("Popurrí guardado en Notion.")
+                            if link:
+                                st.link_button("Ver en Notion",link)
+                            state["cana_pop_notion_rows"] = notion_list(
+                                st, set(song_by_id))
+                        except (PopurriNotionError, ValueError) as err:
+                            st.error(str(err))
+            else:
+                st.caption("El guardado requiere configurar POPURRIS_ADMIN_PASSWORD.")
+
     st.divider()
     st.markdown('<div class="cana-song-title">Visor continuo</div>',
                 unsafe_allow_html=True)

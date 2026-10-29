@@ -204,30 +204,43 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
         help="Copia temporal mientras habilitamos la segunda base de datos de Notion."
     )
 
+    def import_saved():
+        # Callback: se ejecuta antes de crear text_input y radio, por lo que
+        # podemos restaurar sus estados sin StreamlitAPIException.
+        uploaded = state.get("cana_pop_import")
+        if uploaded is None:
+            return
+        try:
+            data = json.loads(uploaded.getvalue().decode("utf-8"))
+            if not isinstance(data, dict) or data.get("format") != "cana-popurri-v1":
+                raise ValueError("Formato desconocido")
+            selections = data.get("songs", [])
+            if not isinstance(selections, list) or len(selections) > MAX_SONGS:
+                raise ValueError("Cantidad de cantos inválida")
+            valid = []
+            for song in selections:
+                if not isinstance(song, dict):
+                    continue
+                if song.get("song_id") in song_by_id:
+                    valid.append({
+                        "song_id": song["song_id"],
+                        "steps": max(-24, min(24, int(song.get("steps", 0)))),
+                        "uid": uuid.uuid4().hex,
+                    })
+            state["cana_pop_items"] = valid
+            state["cana_pop_mode"] = "Personalizado"
+            state["cana_pop_title"] = str(data.get("name", "Popurrí"))[:100]
+            state["cana_pop_import_error"] = ""
+        except (ValueError, TypeError, UnicodeError, KeyError, AttributeError):
+            state["cana_pop_import_error"] = "No pude leer el archivo. Usa uno exportado desde Caná."
+
     with st.expander("Cargar popurrí desde archivo"):
-        uploaded = st.file_uploader("Archivo .json de Caná",type=["json"],key="cana_pop_import")
-        if uploaded is not None and st.button("Importar repertorio"):
-            try:
-                data=json.loads(uploaded.getvalue().decode("utf-8"))
-                if data.get("format")!="cana-popurri-v1":
-                    raise ValueError("Formato desconocido")
-                selections=data.get("songs",[])
-                if not isinstance(selections,list) or len(selections)>MAX_SONGS:
-                    raise ValueError("Cantidad de cantos inválida")
-                valid=[]
-                for s in selections:
-                    if s.get("song_id") in song_by_id:
-                        valid.append({
-                            "song_id":s["song_id"],
-                            "steps":max(-24,min(24,int(s.get("steps",0)))),
-                            "uid":uuid.uuid4().hex,
-                        })
-                state["cana_pop_items"]=valid
-                state["cana_pop_mode"]="Personalizado"
-                state["cana_pop_title"]=str(data.get("name","Popurrí"))[:100]
-                st.rerun()
-            except (ValueError,TypeError,UnicodeError,KeyError,AttributeError):
-                st.error("No pude leer el archivo. Usa uno exportado desde este mismo visor.")
+        uploaded = st.file_uploader(
+            "Archivo .json de Caná", type=["json"], key="cana_pop_import")
+        st.button("Importar repertorio", on_click=import_saved,
+                  disabled=uploaded is None)
+        if state.get("cana_pop_import_error"):
+            st.error(state["cana_pop_import_error"])
 
     st.divider()
     st.markdown('<div class="cana-song-title">Visor continuo</div>',

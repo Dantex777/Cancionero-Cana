@@ -280,6 +280,34 @@ st.markdown("""
     color:#f3f4f8 !important;
 }
 
+/* Botones oscuros de navegación/actualización, incluso si el tema general es claro. */
+[data-testid="stSidebar"] .st-key-cana_catalog_open_sidebar button,
+[data-testid="stSidebar"] .st-key-cana_catalog_back_sidebar button,
+[data-testid="stSidebar"] .st-key-cana_pop_open_sidebar button,
+[data-testid="stSidebar"] .st-key-cana_pop_close_sidebar button,
+[data-testid="stSidebar"] .st-key-cana_refresh_songs button {
+    background-color:#252735 !important;
+    border:1px solid #666a80 !important;
+    color:#f7f7ff !important;
+}
+[data-testid="stSidebar"] .st-key-cana_catalog_open_sidebar button :is(p,span),
+[data-testid="stSidebar"] .st-key-cana_catalog_back_sidebar button :is(p,span),
+[data-testid="stSidebar"] .st-key-cana_pop_open_sidebar button :is(p,span),
+[data-testid="stSidebar"] .st-key-cana_pop_close_sidebar button :is(p,span),
+[data-testid="stSidebar"] .st-key-cana_refresh_songs button :is(p,span){
+    color:#f7f7ff !important;
+    -webkit-text-fill-color:#f7f7ff !important;
+    font-weight:600;
+}
+[data-testid="stSidebar"] .st-key-cana_catalog_open_sidebar button:hover,
+[data-testid="stSidebar"] .st-key-cana_catalog_back_sidebar button:hover,
+[data-testid="stSidebar"] .st-key-cana_pop_open_sidebar button:hover,
+[data-testid="stSidebar"] .st-key-cana_pop_close_sidebar button:hover,
+[data-testid="stSidebar"] .st-key-cana_refresh_songs button:hover{
+    background-color:#36394c !important;
+    border-color:#a99dcb !important;
+}
+
 /* La barra de tono se mantiene compacta en teléfonos. */
 .st-key-cana_toneline [data-testid='stHorizontalBlock'] {
     flex-wrap:nowrap !important;
@@ -529,7 +557,7 @@ with st.sidebar:
         'Bemoles (b)': 'bemoles',
     }[notation]
     st.divider()
-    if st.button('🔄 Actualizar canciones', use_container_width=True):
+    if st.button('🔄 Actualizar canciones', key='cana_refresh_songs', use_container_width=True):
         songs_from_notion.clear()
         content_from_notion.clear()
         lyric_index.clear()
@@ -613,7 +641,7 @@ if st.session_state['cana_catalog_view']:
                     excerpt = search_preview(entry, '', max_chars=135)
                     st.markdown('<div class="cana-catalogue-preview">' +
                                 html.escape(excerpt) + '</div>', unsafe_allow_html=True)
-    st.caption('Cancionero Caná · v0.4.4 · Auto Scroll')
+    st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí y Auto Scroll')
     st.stop()
 
 # Vista musical normal: sin listas que empujen el canto hacia abajo.
@@ -699,9 +727,20 @@ else:
 st.markdown("""
 <style>
 .cana-footer {border-top:1px solid #393945; margin:2.0rem 0 0; padding:1.35rem .15rem 2rem; font-size:.90rem;}
-.cana-footer-note {color:#c9a7f5; font-style:italic; line-height:1.6; margin-bottom:.80rem;}
-.cana-footer-help {color:#eceaf1; line-height:1.6;}
-.cana-footer a, .cana-footer a:visited {color:#d3c0fb; text-decoration:underline; text-underline-offset:2px;}
+.cana-footer-note {
+    color:color-mix(in srgb, var(--text-color, #21222b) 35%, #b18be6);
+    font-style:italic; line-height:1.6; margin-bottom:.80rem;
+    font-weight:550;
+}
+.cana-footer-help {
+    color:var(--text-color, inherit) !important;
+    line-height:1.6; font-weight:550;
+}
+.cana-footer a, .cana-footer a:visited {
+    color:color-mix(in srgb, var(--text-color, #21222b) 65%, #9871d5);
+    font-weight:650;
+    text-decoration:underline; text-underline-offset:2px;
+}
 </style>
 <div class="cana-footer">
   <div class="cana-footer-note">Cantoral en construcción XD (Si llegaste hasta aquí, ten paciencia, pronto completaremos el cancionero 😉)</div>
@@ -710,4 +749,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-st.caption('Cancionero Caná · v0.4.4 · Auto Scroll')
+st.caption('Cancionero Caná · v0.5.0 · Modo Popurrí y Auto Scroll')

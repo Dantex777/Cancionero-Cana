@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.4.4: Auto Scroll y menú móvil."""
+"""Cancionero Caná v0.5.0 beta: Popurrí, Auto Scroll y transposición."""
 from pathlib import Path
 import html
 import os
@@ -284,7 +284,7 @@ st.markdown("""
 # Esta imagen se guarda junto a app.py en GitHub; no depende de Notion ni de URLs temporales.
 PORTADA = Path(__file__).with_name('portada_cantoral_cana.webp')
 # En el catálogo dejamos espacio para explorar la lista sin desplazarla por la portada.
-if not st.session_state.get('cana_catalog_view', False):
+if not st.session_state.get('cana_catalog_view', False) and not st.session_state.get('cana_popurri_view', False):
     if PORTADA.is_file():
         with st.container(key='cana_banner'):
             st.image(str(PORTADA), use_container_width=True)
@@ -324,11 +324,14 @@ if 'cana_catalog_view' not in st.session_state:
     st.session_state['cana_catalog_view'] = False
 if 'cana_close_sidebar_token' not in st.session_state:
     st.session_state['cana_close_sidebar_token'] = 0
+if 'cana_popurri_view' not in st.session_state:
+    st.session_state['cana_popurri_view'] = False
 
 
 def show_catalogue():
     """Abre una lista opcional, sin modificar la canción elegida."""
     st.session_state['cana_catalog_view'] = True
+    st.session_state['cana_popurri_view'] = False
     st.session_state['cana_close_sidebar_token'] += 1
 
 
@@ -342,8 +345,20 @@ def choose_song(song_id: str):
     """Cambia el canto desde resultados, y deja lista una nueva búsqueda."""
     st.session_state['cana_active_song'] = song_id
     st.session_state['cana_catalog_view'] = False
+    st.session_state['cana_popurri_view'] = False
     st.session_state['cana_search_query'] = ''
     st.session_state['cana_picker_revision'] += 1
+    st.session_state['cana_close_sidebar_token'] += 1
+
+
+def show_popurri():
+    st.session_state['cana_popurri_view'] = True
+    st.session_state['cana_catalog_view'] = False
+    st.session_state['cana_close_sidebar_token'] += 1
+
+
+def hide_popurri():
+    st.session_state['cana_popurri_view'] = False
     st.session_state['cana_close_sidebar_token'] += 1
 
 
@@ -442,6 +457,12 @@ with st.sidebar:
         st.button('📚 Ver catálogo completo', key='cana_catalog_open_sidebar',
                   use_container_width=True, on_click=show_catalogue)
 
+    if st.session_state['cana_popurri_view']:
+        st.button('← Volver al visor musical', key='cana_pop_close_sidebar',
+                  on_click=hide_popurri, use_container_width=True)
+    else:
+        st.button('🎼 Crear Popurrí', key='cana_pop_open_sidebar',
+                  on_click=show_popurri, use_container_width=True)
     st.divider()
     # Las preferencias quedan después del buscador, como solicitó el usuario.
     st.subheader('Visualización')
@@ -482,6 +503,16 @@ with st.sidebar:
 # Mantener el control del menú en la zona principal evita que se desmonte
 # cuando el usuario contrae la barra lateral en un teléfono.
 st.html(sidebar_helper_html(st.session_state['cana_close_sidebar_token']), unsafe_allow_javascript=True)
+
+# Vista experimental de popurrí: se monta aparte de canción y catálogo.
+if st.session_state['cana_popurri_view']:
+    from popurri import show_popurri as render_popurri
+    st.button('← Volver a la canción', key='cana_pop_close_main',
+              on_click=hide_popurri)
+    render_popurri(st, songs, api, root_key, content_from_notion,
+                   show_chords, font_size, notation_code, prevent_overlap, font_code)
+    st.caption('Cancionero Caná · v0.5.0 beta · Modo Popurrí')
+    st.stop()
 
 # Vista alternativa opcional: biblioteca de títulos, sin cambiar de aplicación.
 # No consultamos las letras por defecto: Notion sólo se carga si el usuario

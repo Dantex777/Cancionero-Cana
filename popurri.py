@@ -268,18 +268,19 @@ def show_popurri(st, songs, api, root_key, content_from_notion,
                 st.error(state["cana_pop_notion_error"])
 
             rows = state.get("cana_pop_notion_rows", [])
+            by_saved_id = {row["id"]: row for row in rows}
             selected = st.selectbox(
-                "Repertorio guardado", rows, index=None,
-                format_func=lambda row: row["name"],
+                "Repertorio guardado", list(by_saved_id), index=None,
+                format_func=lambda item_id: by_saved_id[item_id]["name"],
                 placeholder="Selecciona un popurrí guardado…",
                 key="cana_pop_selected_notion",
             )
 
             def load_notion_popurri():
-                chosen = state.get("cana_pop_selected_notion")
-                if not chosen:
+                saved_id = state.get("cana_pop_selected_notion")
+                if saved_id not in by_saved_id:
                     return
-                data = chosen["data"]
+                data = by_saved_id[saved_id]["data"]
                 state["cana_pop_items"] = [
                     {"song_id": row["song_id"], "steps": int(row["steps"]),
                      "uid": uuid.uuid4().hex}

@@ -464,9 +464,22 @@ with st.sidebar:
         submit_function=choose_song,
         help='Busca por título sin importar las tildes: "rio" encuentra "río".',
         style_overrides={
+            # El componente incluye su etiqueta dentro del iframe: fondo
+            # oscuro en el contenedor y un borde solo en el selector.
+            'wrapper': {
+                'backgroundColor': '#18191f',
+                'padding': '0',
+                'margin': '0',
+            },
             'searchbox': {
-                'control': {'backgroundColor': '#242632', 'borderColor': '#565970',
-                            'minHeight': '38px'},
+                'control': {
+                    'backgroundColor': '#242632',
+                    'border': '1px solid #565970',
+                    'borderRadius': '9px',
+                    'boxShadow': 'none',
+                    'minHeight': '38px',
+                    '&:hover': {'border': '1px solid #797b96'},
+                },
                 'input': {'color': '#f9f9ff'},
                 'singleValue': {'color': '#f9f9ff'},
                 'placeholder': {'color': '#bfc1d1'},

@@ -1,4 +1,4 @@
-"""Cancionero Caná v0.5.1: Popurrí, Auto Scroll y transposición."""
+"""Cancionero Caná v0.5.2 beta: selector de títulos sin tildes."""
 from pathlib import Path
 import html
 import os
@@ -7,9 +7,11 @@ import time
 
 import streamlit as st
 from dotenv import load_dotenv
+from streamlit_searchbox import st_searchbox
 
 from musica import CSS, music_from_blocks, render_song, pitch_class, PREFERRED, SHARPS, FLATS
 from cana_interactions import render_autoscroll_song, sidebar_helper_html
+from buscador_cana import search_song_options
 
 st.set_page_config(page_title='Cancionero Caná', page_icon='🎶', layout='wide',
                    initial_sidebar_state='collapsed')
@@ -445,23 +447,34 @@ with st.sidebar:
     if st.session_state['cana_active_song'] not in by_id:
         st.session_state['cana_active_song'] = None
 
-    # 2. Selector de canciones, siempre disponible y con búsqueda por título.
-    picker_key = f'cana_picker_{st.session_state["cana_picker_revision"]}'
+    # 2. Dropdown con búsqueda sin tildes, respetando el título real de Notion.
+    # La lista completa sigue desplegándose al tocar el campo sin escribir.
+    picker_key = f'cana_picker_{st.session_state["cana_picker_revision"]}_{api.normalized(category)}'
 
-    def select_a_song():
-        selected = st.session_state.get(picker_key)
-        if selected:
-            choose_song(selected)
+    def filtered_title_options(query: str):
+        return search_song_options(query, candidates, api.song_title)
 
-    st.selectbox(
-        'Seleccionar canción',
-        options=ids,
-        index=None,
+    st_searchbox(
+        search_function=filtered_title_options,
+        label='Seleccionar canción',
         placeholder='Elige una canción…',
-        format_func=lambda song_id: api.song_title(by_id[song_id]),
+        default_options=filtered_title_options(''),
         key=picker_key,
-        on_change=select_a_song,
-        help='Escribe parte del título. Al elegir un canto, el selector vuelve a quedar vacío.',
+        clear_on_submit=True,
+        submit_function=choose_song,
+        help='Busca por título sin importar las tildes: "rio" encuentra "río".',
+        style_overrides={
+            'searchbox': {
+                'control': {'backgroundColor': '#242632', 'borderColor': '#565970',
+                            'minHeight': '38px'},
+                'input': {'color': '#f9f9ff'},
+                'singleValue': {'color': '#f9f9ff'},
+                'placeholder': {'color': '#bfc1d1'},
+                'menuList': {'backgroundColor': '#242632'},
+                'option': {'color': '#f9f9ff', 'backgroundColor': '#242632',
+                           'highlightColor': '#3c4056'},
+            }
+        },
     )
 
     # 3. Búsqueda por nombre O frase de la letra, con resultados clicables.
@@ -574,7 +587,7 @@ if st.session_state['cana_popurri_view']:
               on_click=hide_popurri)
     render_popurri(st, songs, api, root_key, content_from_notion,
                    show_chords, font_size, notation_code, prevent_overlap, font_code)
-    st.caption('Cancionero Caná · v0.5.1 · Modo Popurrí')
+    st.caption('Cancionero Caná · v0.5.2 beta · Modo Popurrí')
     st.stop()
 
 # Vista alternativa opcional: biblioteca de títulos, sin cambiar de aplicación.
@@ -641,7 +654,7 @@ if st.session_state['cana_catalog_view']:
                     excerpt = search_preview(entry, '', max_chars=135)
                     st.markdown('<div class="cana-catalogue-preview">' +
                                 html.escape(excerpt) + '</div>', unsafe_allow_html=True)
-    st.caption('Cancionero Caná · v0.5.1 · Modo Popurrí y Auto Scroll')
+    st.caption('Cancionero Caná · v0.5.2 beta · Modo Popurrí y Auto Scroll')
     st.stop()
 
 # Vista musical normal: sin listas que empujen el canto hacia abajo.
@@ -650,7 +663,7 @@ if not ids:
     st.stop()
 if not st.session_state['cana_active_song']:
     st.info('Elige tu canción en el menú lateral para comenzar.')
-    st.caption('Cancionero Caná · v0.5.1 · Modo Popurrí')
+    st.caption('Cancionero Caná · v0.5.2 beta · Modo Popurrí')
     st.stop()
 current = by_id[st.session_state['cana_active_song']]
 title = api.song_title(current)
@@ -749,4 +762,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-st.caption('Cancionero Caná · v0.5.1 · Modo Popurrí y Auto Scroll')
+st.caption('Cancionero Caná · v0.5.2 beta · Modo Popurrí y Auto Scroll')

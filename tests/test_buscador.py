@@ -26,7 +26,7 @@ class SearchAccentTests(unittest.TestCase):
         self.assertEqual(search_song_options("espiritu santo", self.pages, title),
                          [("Espíritu Santo", "c")])
         self.assertEqual(search_song_options("SENOR", self.pages, title),
-                         [("El Señor está aquí", "b"), ("Bendigan al Señor", "d")])
+                         [("Bendigan al Señor", "d"), ("El Señor está aquí", "b")])
 
     def test_complete_list_uses_original_titles(self):
         expected = search_song_options("", self.pages, title)
